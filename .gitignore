@@ -20,6 +20,7 @@ data/processed/*
 outputs/
 results/
 plots/
+tables/
 *.png
 *.pdf
 *.html

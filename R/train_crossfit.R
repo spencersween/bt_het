@@ -28,6 +28,7 @@
 #' @param hess_ridge Ridge regularization for Hessian inversion (default: 1e-6)
 #' @param device Device ("cpu" or "cuda", default: auto-detect)
 #' @param verbose Whether to print progress (default: TRUE)
+#' @param live_plot Whether to show live plot windows during training (default: FALSE)
 #' @return List with OOF predictions, models, and histories
 #' @export
 train_crossfit = function(X, D, Y, S,
@@ -49,7 +50,8 @@ train_crossfit = function(X, D, Y, S,
                           patience_h       = 15,
                           hess_ridge       = 1e-6,
                           device           = NULL,
-                          verbose          = TRUE) {
+                          verbose          = TRUE,
+                          live_plot        = FALSE) {
   
   if (is.null(device)) device = if (cuda_is_available()) "cuda" else "cpu"
   
@@ -152,7 +154,9 @@ train_crossfit = function(X, D, Y, S,
       max_epochs  = max_epochs_bt,
       patience    = patience_bt,
       device      = device,
-      verbose     = verbose
+      verbose     = verbose,
+      live_plot   = live_plot,
+      plot_file   = if (live_plot) sprintf("plots/training_live_stage1_fold%s.png", s) else NULL
     )
     bt_model = bt_fit$model
     hist_bt  = bt_fit$history
@@ -197,7 +201,9 @@ train_crossfit = function(X, D, Y, S,
       max_epochs  = max_epochs_h,
       patience    = patience_h,
       device      = device,
-      verbose     = verbose
+      verbose     = verbose,
+      live_plot   = live_plot,
+      plot_file   = if (live_plot) sprintf("plots/training_live_stage2_fold%s.png", s) else NULL
     )
     h_model = h_fit$model
     hist_h  = h_fit$history

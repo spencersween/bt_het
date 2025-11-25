@@ -1,5 +1,4 @@
-#!/usr/bin/env Rscript
-# Analysis script for cross-fitting results
+setwd("/Users/spencersween/bt_het")
 
 library(dplyr)
 library(purrr)

@@ -15,6 +15,8 @@
 #' @param patience Early stopping patience
 #' @param device Device ("cpu" or "cuda")
 #' @param verbose Whether to print progress
+#' @param live_plot Whether to show live plot window (default: FALSE)
+#' @param plot_file Optional file path to save live plot PNG (default: NULL)
 #' @return List with model and training history
 #' @export
 train_bt_single = function(X, D, Y,
@@ -24,7 +26,9 @@ train_bt_single = function(X, D, Y,
                            batch_size,
                            max_epochs, patience,
                            device,
-                           verbose = TRUE) {
+                           verbose = TRUE,
+                           live_plot = FALSE,
+                           plot_file = NULL) {
   
   p         = ncol(X)
   k_minus_1 = ncol(D)
@@ -59,6 +63,19 @@ train_bt_single = function(X, D, Y,
   epochs_no_improve = 0
   hist = data.frame(epoch = integer(), train_loss = double(), val_loss = double())
   
+  # Initialize live plotting if requested
+  plot_env = NULL
+  if (live_plot) {
+    if (is.null(plot_file)) {
+      plot_file = "plots/training_live_stage1.png"
+    }
+    plot_env = init_live_plot(
+      title = "[Stage 1] BT Network Training",
+      device = if (interactive()) "both" else "png",
+      plot_file = plot_file
+    )
+  }
+  
   for (epoch in 1:max_epochs) {
     model$train()
     run_loss = 0
@@ -90,6 +107,11 @@ train_bt_single = function(X, D, Y,
       data.frame(epoch = epoch, train_loss = train_loss, val_loss = val_loss)
     )
     
+    # Update live plot if enabled
+    if (live_plot && !is.null(plot_env)) {
+      update_live_plot(plot_env, epoch, train_loss, val_loss, max_epochs)
+    }
+    
     if (val_loss + 1e-8 < best_val) {
       best_val          = val_loss
       best_state        = model$state_dict()
@@ -108,6 +130,11 @@ train_bt_single = function(X, D, Y,
   }
   
   if (!is.null(best_state)) model$load_state_dict(best_state)
+  
+  # Close live plot if enabled
+  if (live_plot && !is.null(plot_env)) {
+    close_live_plot(plot_env)
+  }
   
   list(model = model$to(device = "cpu"), history = hist)
 }

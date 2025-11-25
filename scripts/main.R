@@ -120,7 +120,8 @@ fit = train_crossfit(
   patience_h    = 10,
   device        = device,
   verbose       = TRUE,
-  hess_ridge    = 1e-5
+  hess_ridge    = 1e-5,
+  live_plot     = TRUE
 )
 
 cat("\nCross-fitting completed successfully!\n")
