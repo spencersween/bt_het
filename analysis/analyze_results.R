@@ -191,25 +191,7 @@ print(p_tau_dens)
 ggsave("plots/tau_density_claude-v1.png", p_tau_dens, width = 8, height = 6)
 
 ############################################################
-# 7. Conditional Hessian analysis
-############################################################
-
-cat("\n============================================================\n")
-cat("Analyzing conditional Hessian outputs\n")
-cat("============================================================\n")
-
-nobs = length(Y)
-stopifnot(all(dim(fit$oof_Hbar_cols) == c(nobs, k_minus_1, k_minus_1)))
-
-Hbar_avg = apply(fit$oof_Hbar_cols, c(2, 3), mean, na.rm = TRUE)
-max_abs_asym = max(abs(Hbar_avg - t(Hbar_avg)), na.rm = TRUE)
-
-cat(sprintf("\nAvg predicted Hessian asymmetry (abs max): %.4e\n", max_abs_asym))
-
-cat("\nAnalysis complete! All plots saved to plots/ directory.\n")
-
-############################################################
-# 8. Save tables and summaries
+# 7. Save tables and summaries
 ############################################################
 
 cat("\n============================================================\n")

@@ -28,7 +28,6 @@
 #' @param hess_ridge Ridge regularization for Hessian inversion (default: 1e-6)
 #' @param device Device ("cpu" or "cuda", default: auto-detect)
 #' @param verbose Whether to print progress (default: TRUE)
-#' @param live_plot Whether to show live plot windows during training (default: FALSE)
 #' @return List with OOF predictions, models, and histories
 #' @export
 train_crossfit = function(X, D, Y, S,
@@ -50,8 +49,7 @@ train_crossfit = function(X, D, Y, S,
                           patience_h       = 15,
                           hess_ridge       = 1e-6,
                           device           = NULL,
-                          verbose          = TRUE,
-                          live_plot        = FALSE) {
+                          verbose          = TRUE) {
   
   if (is.null(device)) device = if (cuda_is_available()) "cuda" else "cpu"
   
@@ -154,15 +152,30 @@ train_crossfit = function(X, D, Y, S,
       max_epochs  = max_epochs_bt,
       patience    = patience_bt,
       device      = device,
-      verbose     = verbose,
-      live_plot   = live_plot,
-      plot_file   = if (live_plot) sprintf("plots/training_live_stage1_fold%s.png", s) else NULL
+      verbose     = verbose
     )
     bt_model = bt_fit$model
     hist_bt  = bt_fit$history
     
     fold_models_bt[[as.character(s)]] = bt_model
     fold_hist_bt[[as.character(s)]]   = hist_bt
+    
+    # Save Stage 1 plot for this fold
+    if (nrow(hist_bt) > 0) {
+      dir.create("plots/fold_plots", showWarnings = FALSE, recursive = TRUE)
+      plot_file = sprintf("plots/fold_plots/training_stage1_fold%s.png", s)
+      png(plot_file, width = 800, height = 600, res = 100)
+      plot(hist_bt$epoch, hist_bt$train_loss,
+           type = "l", col = "blue", lwd = 2,
+           xlab = "Epoch", ylab = "Loss",
+           main = sprintf("[Stage 1] BT Network - Fold %s", s))
+      lines(hist_bt$epoch, hist_bt$val_loss, col = "red", lwd = 2)
+      legend("topright", legend = c("Train Loss", "Val Loss"),
+             col = c("blue", "red"), lty = 1, lwd = 2)
+      grid()
+      dev.off()
+      if (verbose) cat(sprintf("Saved Stage 1 plot: %s\n", plot_file))
+    }
     
     if (verbose) cat("\nStage 1: Predicting λ(X), p(X) on this fold's test set...\n")
     bt_pred_test = predict_bt_full(
@@ -201,15 +214,30 @@ train_crossfit = function(X, D, Y, S,
       max_epochs  = max_epochs_h,
       patience    = patience_h,
       device      = device,
-      verbose     = verbose,
-      live_plot   = live_plot,
-      plot_file   = if (live_plot) sprintf("plots/training_live_stage2_fold%s.png", s) else NULL
+      verbose     = verbose
     )
     h_model = h_fit$model
     hist_h  = h_fit$history
     
     fold_models_h[[as.character(s)]] = h_model
     fold_hist_h[[as.character(s)]]   = hist_h
+    
+    # Save Stage 2 plot for this fold
+    if (nrow(hist_h) > 0) {
+      dir.create("plots/fold_plots", showWarnings = FALSE, recursive = TRUE)
+      plot_file = sprintf("plots/fold_plots/training_stage2_fold%s.png", s)
+      png(plot_file, width = 800, height = 600, res = 100)
+      plot(hist_h$epoch, hist_h$train_loss,
+           type = "l", col = "blue", lwd = 2,
+           xlab = "Epoch", ylab = "Loss",
+           main = sprintf("[Stage 2] Hessian Network - Fold %s", s))
+      lines(hist_h$epoch, hist_h$val_loss, col = "red", lwd = 2)
+      legend("topright", legend = c("Train Loss", "Val Loss"),
+             col = c("blue", "red"), lty = 1, lwd = 2)
+      grid()
+      dev.off()
+      if (verbose) cat(sprintf("Saved Stage 2 plot: %s\n", plot_file))
+    }
     
     if (verbose) cat("\nStage 2: Predicting E[D_i D_j | X_i] (lower-tri) on this fold's test set...\n")
     EH_lower_test = predict_hessian_lower(

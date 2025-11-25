@@ -85,7 +85,7 @@ model_names_km1 = features$model_names_km1
 
 # Create cross-validation folds
 cat("Creating cross-validation folds...\n")
-S = create_folds(bt_df, nfolds = 2, seed = 123)
+S = create_folds(bt_df, nfolds = 10, seed = 123)
 
 ############################################################
 # 4. Run neural net with cross-fitting (heterogeneous BT)
@@ -102,26 +102,25 @@ fit = train_crossfit(
   D             = D,
   Y             = Y,
   S             = S,
-  hidden_bt     = rep(10, 3),
-  dropout_bt    = rep(0.1, 3),
+  hidden_bt     = rep(100, 2),
+  dropout_bt    = rep(0.1, 2),
   use_batchnorm_bt = FALSE,
-  hidden_h      = rep(10, 3),
-  dropout_h     = rep(0.1, 3),
+  hidden_h      = rep(100, 2),
+  dropout_h     = rep(0.1, 2),
   use_batchnorm_h  = FALSE,
-  lr_bt         = 1e-2,
-  lr_h          = 1e-2,
-  weight_decay_bt = 1e-5,
-  weight_decay_h  = 1e-5,
+  lr_bt         = 1e-3,
+  lr_h          = 1e-3,
+  weight_decay_bt = 1e-3,
+  weight_decay_h  = 1e-3,
   batch_size_bt = 2^15,
   batch_size_h  = 2^15,
-  max_epochs_bt = 10,
-  max_epochs_h  = 10,
-  patience_bt   = 10,
-  patience_h    = 10,
+  max_epochs_bt = 1000,
+  max_epochs_h  = 1000,
+  patience_bt   = 20,
+  patience_h    = 20,
   device        = device,
   verbose       = TRUE,
-  hess_ridge    = 1e-5,
-  live_plot     = TRUE
+  hess_ridge    = 1e-5
 )
 
 cat("\nCross-fitting completed successfully!\n")
