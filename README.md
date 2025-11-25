@@ -1,6 +1,6 @@
-# Heterogeneous Bradley-Terry Models with Torch
+# Heterogeneity Enriched Bradley Terry Model: An Application to Chatbot Arena Rankings
 
-This package implements heterogeneous Bradley-Terry models using neural networks for preference learning, with support for cross-fitting and influence function estimation.
+This package implements heterogeneous Bradley-Terry models using neural networks for preference learning, with support for cross-fitting and influence function estimation. The methodology is applied to ranking chatbot models from Chatbot Arena data.
 
 ## Overview
 
