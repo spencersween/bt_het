@@ -1,0 +1,15 @@
+^data/raw/.*
+^data/processed/.*
+^results/.*
+^plots/.*
+^\.git/.*
+^\.Rproj\.user/.*
+^config/.*
+^scripts/.*
+^analysis/.*
+^tests/.*
+^docs/.*
+^\.gitignore$
+^DESCRIPTION$
+^README\.md$
+

@@ -1,0 +1,26 @@
+Package: bt_het
+Type: Package
+Title: Heterogeneous Bradley-Terry Models with Torch
+Version: 0.1.0
+Author: Your Name
+Maintainer: Your Name <your.email@example.com>
+Description: Implementation of heterogeneous Bradley-Terry models using neural networks
+    for preference learning with cross-fitting and influence function estimation.
+Depends: R (>= 4.0.0)
+Imports:
+    dplyr,
+    purrr,
+    lubridate,
+    arrow,
+    torch,
+    coro,
+    ggplot2,
+    tidyr,
+    data.table,
+    binsreg,
+    grf,
+    MASS
+License: MIT
+Encoding: UTF-8
+LazyData: true
+

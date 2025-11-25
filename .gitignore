@@ -1,0 +1,43 @@
+# R
+.Rhistory
+.Rapp.history
+.RData
+.Ruserdata
+*.Rproj.user/
+*.Rproj
+.DS_Store
+
+# Data files
+*.parquet
+*.csv
+*.feather
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Output files
+outputs/
+results/
+plots/
+*.png
+*.pdf
+*.html
+
+# Python (if any)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# R package build
+*.tar.gz
+.Rcheck/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+

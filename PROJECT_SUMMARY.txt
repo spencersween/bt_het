@@ -1,0 +1,62 @@
+================================================================================
+HETEROGENEOUS BRADLEY-TERRY CODEBASE - PROJECT SUMMARY
+================================================================================
+
+Created from monolithic R script into organized, modular codebase.
+
+STATISTICS:
+- Total R files: 18
+- Main scripts: 2 (main.R, analyze_results.R)
+- Data processing functions: 3
+- Model definitions: 3
+- Training functions: 3
+- Utility functions: 5
+- Configuration files: 1
+- Documentation files: 4
+
+FOLDER STRUCTURE:
+bt_het/
+├── R/                    Core training functions
+│   ├── train_bt_single.R
+│   ├── train_hessian_single.R
+│   ├── train_crossfit.R
+│   └── zzz.R (helper)
+├── data/                 Data processing
+│   ├── extract_conversation.R
+│   ├── build_clean_data.R
+│   └── prepare_bt_data.R
+├── models/               Neural network modules
+│   ├── datasets.R
+│   ├── bt_net.R
+│   └── hessian_net.R
+├── utils/                Utility functions
+│   ├── bt_classical.R
+│   ├── bt_helpers.R
+│   ├── hessian_helpers.R
+│   ├── prepare_features.R
+│   └── metrics.R
+├── scripts/              Execution scripts
+│   └── main.R
+├── analysis/             Analysis scripts
+│   └── analyze_results.R
+├── config/               Configuration
+│   └── config.R
+├── results/              Output directory
+├── plots/                Plot output directory
+└── tests/                (for future unit tests)
+
+KEY FEATURES:
+✓ Modular function organization
+✓ Comprehensive documentation
+✓ Configuration management
+✓ Reusable components
+✓ Clear separation of concerns
+✓ Ready for testing and extension
+
+USAGE:
+1. Configure paths in config/config.R
+2. Run: source("scripts/main.R")
+3. Analyze: source("analysis/analyze_results.R")
+
+See README.md and USAGE.md for detailed instructions.
+================================================================================
