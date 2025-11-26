@@ -1,6 +1,6 @@
 # Heterogeneous Bradley-Terry Models with Torch and R
 
-This package implements semi-parametric estimation of Bradley-Terry models with heterogeneity-enriched preference parameters using structural deep neural networks in R and torch. The econometric framework builds on Farrell, Liang, and Misra (2025) and is applied here to analyze Chatbot Arena rankings. The approach supports nonparametric heterogeneity analysis in pairwise AI model comparisons, enabling interpretable assessment of model performance across different predicted conversation tasks and offering a foundation for data driven routing and model selection policies.
+This package implements semi-parametric estimation of Bradley-Terry models with heterogeneity-enriched preference parameters using structural deep neural networks in R and torch. The econometric framework builds off Farrell, Liang, and Misra (2025) and is applied here to analyze Chatbot Arena rankings. The approach supports nonparametric heterogeneity analysis in pairwise AI model comparisons, enabling interpretable assessment of model performance across different predicted conversation tasks and offering a foundation for data driven routing and model selection policies.
 
 ## Methodology
 
@@ -8,13 +8,7 @@ This package implements semi-parametric estimation of Bradley-Terry models with 
 
 The classical Bradley Terry (BT) model provides a probabilistic structure for paired comparisons among items $m \in \{1,\ldots,M\}$. Each item is associated with a latent strength parameter $\theta_m$. For a comparison between items $i$ and $j$, the probability that $i$ is preferred is
 
-$$
-\Pr(i \succ j)
-=
-\frac{\exp(\theta_i)}{\exp(\theta_i) + \exp(\theta_j)}
-=
-\Lambda(\theta_i - \theta_j),
-$$
+$$\Pr(i \succ j) = \frac{\exp(\theta_i)}{\exp(\theta_i) + \exp(\theta_j)} = \Lambda(\theta_i - \theta_j).$$
 
 where $\Lambda(\cdot)$ is the logistic function.
 
@@ -25,16 +19,7 @@ Given observations $t = 1,\ldots,T$, let:
 
 The log likelihood is
 
-$$
-\ell(\theta)
-=
-\sum_{t=1}^T
-\left[
-Y_t \log \Lambda(\theta_{i_t} - \theta_{j_t})
-+
-(1 - Y_t) \log(1 - \Lambda(\theta_{i_t} - \theta_{j_t}))
-\right],
-$$
+$$\ell(\theta) = \sum_{t=1}^T \left[ Y_t \log \Lambda(\theta_{i_t} - \theta_{j_t}) + (1 - Y_t) \log\big(1 - \Lambda(\theta_{i_t} - \theta_{j_t})\big) \right].$$
 
 with an identification constraint such as $\sum_m \theta_m = 0$.
 
@@ -48,25 +33,15 @@ Performance of large language models varies systematically across question types
 
 For each model $m$, define a content dependent utility
 
-$$
-U_m(X_t) = \lambda_m(X_t),
-$$
+$$U_m(X_t) = \lambda_m(X_t),$$
 
-estimated via a neural network. For a comparison between models \(i\) and \(j\):
+estimated via a neural network. For a comparison between models $i$ and $j$:
 
-$$
-\Pr(i \succ j \mid X_t)
-=
-\Lambda\big(\lambda_i(X_t) - \lambda_j(X_t)\big).
-$$
+$$\Pr(i \succ j \mid X_t) = \Lambda\big(\lambda_i(X_t) - \lambda_j(X_t)\big).$$
 
 Equivalently, with a design contrast vector $D_t$:
 
-$$
-\Pr(Y_t = 1 \mid X_t, D_t)
-=
-\Lambda\left( D_t^\top \lambda(X_t) \right),
-$$
+$$\Pr(Y_t = 1 \mid X_t, D_t) = \Lambda\big(D_t^\top \lambda(X_t)\big),$$
 
 where $\lambda(X_t)$ contains all model specific heterogeneous coefficients.
 
@@ -117,30 +92,20 @@ This procedure is essential because Neyman orthogonality requires that nuisance 
 Suppose the target parameter $\theta$ is a functional of the heterogeneous coefficients, for example:
 
 - average model strength:  
-  $\theta_m = \mathbb{E}[\lambda_m(X)]$,
+  $$\theta_m = \mathbb{E}[\lambda_m(X)],$$
 
 - average pairwise gap:  
-  $\tau_{m,n} = \mathbb{E}[\lambda_m(X) - \lambda_n(X)]$.
+  $$\tau_{m,n} = \mathbb{E}[\lambda_m(X) - \lambda_n(X)].$$
 
 An orthogonal score takes the form
 
-$$
-\psi(W_t; \theta, \eta)
-=
-\varphi(W_t; \eta) - \theta,
-$$
+$$\psi(W_t; \theta, \eta) = \varphi(W_t; \eta) - \theta,$$
 
 with nuisance functions $\eta = \{\lambda(\cdot), H(\cdot)\}$.
 
 For generalized linear models, a convenient choice is
 
-$$
-\varphi(W_t; \eta)
-=
-\Gamma(X_t)^\top
-H(X_t)^{-1}
-s(W_t; \lambda(X_t)),
-$$
+$$\varphi(W_t; \eta) = \Gamma(X_t)^\top H(X_t)^{-1} s(W_t; \lambda(X_t)),$$
 
 where:
 
@@ -150,15 +115,7 @@ where:
 
 The debiased estimator is
 
-$$
-\hat{\theta}
-=
-\frac{1}{T}
-\sum_t
-\Gamma(X_t)^\top
-\hat{H}(X_t)^{-1}
-\hat{s}(W_t).
-$$
+$$\hat{\theta} = \frac{1}{T} \sum_t \Gamma(X_t)^\top \hat{H}(X_t)^{-1} \hat{s}(W_t).$$
 
 This estimator is asymptotically linear with valid variance formulas even when neural networks are used for nuisance estimation.
 
@@ -189,11 +146,7 @@ Because $X$ includes embedding vectors, a source model can provide topic probabi
 
 Let $p_{\text{topic}}(X)$ denote such topic probabilities. One can examine:
 
-$$
-\mathbb{E}[\lambda_m(X) \mid p_{\text{topic}}(X) = s],
-\qquad
-\mathbb{E}[\lambda_m(X) - \lambda_n(X) \mid p_{\text{topic}}(X) = s].
-$$
+$$\mathbb{E}[\lambda_m(X) \mid p_{\text{topic}}(X) = s], \qquad \mathbb{E}[\lambda_m(X) - \lambda_n(X) \mid p_{\text{topic}}(X) = s].$$
 
 This provides interpretable insights into how LLMs perform across semantic tasks and user needs.
 
