@@ -50,7 +50,7 @@ To allow strengths to vary with prompt characteristics, we generalize the BT uti
 $$
 \lambda(X_i)
 =
-\big(\lambda_1(X_i),\ldots,\lambda_K(X_i)\big)^\top.
+(\lambda_1(X_i),\ldots,\lambda_K(X_i))^\top.
 $$
 
 The heterogeneous BT likelihood is then
@@ -58,7 +58,7 @@ The heterogeneous BT likelihood is then
 $$
 \Pr(Y_i = 1 \mid X_i, D_i)
 =
-\Lambda\big(D_i^\top \lambda(X_i)\big).
+\Lambda(D_i^\top \lambda(X_i)).
 $$
 
 This preserves the Bradley–Terry structure while allowing nonparametric dependence on $X_i$.
@@ -73,11 +73,11 @@ $$
 \ell_i(\lambda(X_i))
 =
 -
-\Big[
+[
 Y_i \log \Lambda(D_i^\top \lambda(X_i))
 +
-(1 - Y_i)\log\big(1 - \Lambda(D_i^\top \lambda(X_i))\big)
-\Big].
+(1 - Y_i)\log(1 - \Lambda(D_i^\top \lambda(X_i)))
+].
 $$
 
 We estimate $\lambda(\cdot)$ via a structural deep neural network:
