@@ -6,7 +6,7 @@ This package implements semi-parametric estimation of Bradley-Terry models with 
 
 ### Classical Bradley Terry Model
 
-The classical Bradley Terry (BT) model provides a probabilistic structure for paired comparisons among items \(m \in \{1,\dots,M\}\). Each item is associated with a latent strength parameter \(\theta_m\). For a comparison between items \(i\) and \(j\), the probability that \(i\) is preferred is
+The classical Bradley Terry (BT) model provides a probabilistic structure for paired comparisons among items \(m \in \{1,\ldots,M\}\). Each item is associated with a latent strength parameter \(\theta_m\). For a comparison between items \(i\) and \(j\), the probability that \(i\) is preferred is
 
 \[
 \Pr(i \succ j)
@@ -18,7 +18,7 @@ The classical Bradley Terry (BT) model provides a probabilistic structure for pa
 
 where \(\Lambda(\cdot)\) is the logistic function.
 
-Given observations \(t = 1,\dots,T\), let:
+Given observations \(t = 1,\ldots,T\), let:
 
 - \(Y_t\): outcome (1 if \(i_t\) is chosen over \(j_t\), else 0)
 - \(i_t, j_t\): indices of compared models
@@ -65,7 +65,7 @@ Equivalently, with a design contrast vector \(D_t\):
 \[
 \Pr(Y_t = 1 \mid X_t, D_t)
 =
-\Lambda\!\left( D_t^\top \lambda(X_t) \right),
+\Lambda\left( D_t^\top \lambda(X_t) \right),
 \]
 
 where \(\lambda(X_t)\) contains all model specific heterogeneous coefficients.
