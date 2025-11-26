@@ -198,8 +198,6 @@ This enables interpretable preference surfaces and uncertainty-aware routing.
 **Chiang, H. D., Kato, K., Sasaki, Y. (2021).**  
 *Cross-Fitting and Orthogonal Inference with Clustered Dependence.* arXiv:2104.06575.
 
-
-
 ## Codebase Overview
 
 This codebase implements a two-stage approach to modeling heterogeneous preferences:
