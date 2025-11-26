@@ -1,196 +1,203 @@
 # Heterogeneous Bradley-Terry Models with Torch and R
 
-This repository provides a general implementation of heterogeneity-enriched Bradley Terry models using structural deep neural networks in R and torch. The estimator’s form and statistical guarantees rely on the semi-parametric results of Farrell, Liang, and Misra (2025), and extend the classical paired comparison model to settings with high-dimensional, context-dependent covariates. The methodology integrates tools from causal inference, structural econometrics, and machine learning to recover preference parameters that vary smoothly with observed features.
+This repository provides a general implementation of heterogeneity-enriched Bradley–Terry models using structural deep neural networks in R and torch. The estimator’s form and statistical guarantees rely on the semiparametric results of Farrell, Liang, and Misra (2025), and extend the classical paired comparison model to settings with high-dimensional, context-dependent covariates. The methodology integrates tools from causal inference, structural econometrics, and machine learning to recover preference parameters that vary with observed features.
 
-The framework delivers three core capabilities. First, it enables heterogeneity-aware structural modeling of pairwise choice behavior, allowing latent preference differences to depend on high-dimensional descriptors such as conversation embeddings in AI evaluation problems. Second, it provides a disciplined procedure for statistical inference on pairwise comparisons after controlling for covariates, using orthogonal influence functions and judge-aware clustered cross-fitting. Third, it yields a basis for model interpretability: following Chernozhukov et al. (2025), the influence function construction can be used for nonparametric estimation and inference on how preference surfaces vary across lower-dimensional representations of the inputs (for example, topic probabilities derived from zero-shot classification on the same embedding model used for input features). This functionality will be implemented in this codebase soon.
+The framework delivers three core capabilities. First, it enables heterogeneity-aware structural modeling of pairwise choice behavior, allowing latent preference differences to depend on high-dimensional descriptors such as conversation embeddings in AI evaluation problems. Second, it provides a disciplined procedure for statistical inference on pairwise comparisons after controlling for covariates, using orthogonal influence functions and judge-aware *clustered* cross-fitting following Chiang et al. (2021). Third, it yields a basis for nonparametric interpretation: following Chernozhukov et al. (2022, 2025), orthogonal signals can be used for valid estimation of how preference surfaces vary across lower-dimensional representations of the inputs (e.g., topic probabilities derived from zero-shot classification). This functionality will be added to the codebase soon.
 
-As an applied exercise, the repository implements the estimator on LMSYS Chatbot Arena rankings. This application demonstrates how the method recovers context-dependent performance profiles for language models, quantifies uncertainty in pairwise preference gaps, and provides an econometrically grounded alternative to ad hoc leaderboard metrics. The implementation offers a causal bridge between structural modeling and modern machine learning to support interpretable, data-driven assessments of AI model performance.
+As an applied exercise, the repository implements the estimator on LMSYS Chatbot Arena rankings. This application demonstrates how the method recovers context-dependent performance profiles for language models, quantifies uncertainty in pairwise preference gaps, and provides a principled alternative to leaderboard metrics.
 
-## Methodology
+# Semiparametric Heterogeneous Bradley–Terry Estimator
 
-### Classical (Pooled) Bradley–Terry Model
+---
 
-The classical Bradley–Terry (BT) model provides a probabilistic structure for paired comparisons among alternatives indexed by $k \in \{1,\ldots,K\}$. Each alternative is associated with a latent strength parameter $\theta_k$. For a comparison between alternatives $j$ and $k$, the probability that $j$ is preferred is
+## 1. Classical (Pooled) Bradley–Terry Model
+
+Consider alternatives indexed by $k \in \{1,\ldots,K\}$, each with latent strength $\theta_k$. For a comparison between alternatives $j$ and $k$, the Bradley–Terry choice probability is
 
 $$
-\Pr(j \succ k) = \frac{\exp(\theta_j)}{\exp(\theta_j) + \exp(\theta_k)} 
+\Pr(j \succ k)
+= \frac{\exp(\theta_j)}{\exp(\theta_j) + \exp(\theta_k)}
 = \Lambda(\theta_j - \theta_k),
+\quad
+\Lambda(u) = \frac{1}{1 + e^{-u}}.
 $$
 
-where $\Lambda(\cdot)$ is the logistic link.
+For each observation $i$, we observe:
 
-We estimate this model in **pooled logistic form**. For each observation $i = 1,\ldots,n$, we observe:
+- $Y_i \in \{0,1\}$: indicator for whether $j_i$ is preferred to $k_i$,
+- the ordered pair $(j_i, k_i)$.
 
-- $Y_i \in \{0,1\}$: indicator for whether alternative $j_i$ is preferred to $k_i$,
-- $(j_i, k_i)$: indices of the two alternatives involved in observation $i$.
-
-Define the $K$-dimensional contrast vector
+Define the contrast vector
 
 $$
 D_i = e_{j_i} - e_{k_i},
 $$
 
-where $e_{j}$ is the $j$th standard basis vector. The pooled BT model can be rewritten as a single logistic regression:
+so the pooled BT model is equivalent to
 
 $$
-\Pr(Y_i = 1 \mid D_i) = \Lambda(\theta^\top D_i),
+\Pr(Y_i = 1 \mid D_i) = \Lambda(\theta^\top D_i).
 $$
 
-with $\theta = (\theta_1,\ldots,\theta_K)^\top$. Identification requires either (i) dropping one model indicator or (ii) imposing $\sum_{k=1}^K \theta_k = 0$.
-
-In the Chatbot Arena application, the $\theta_k$ represent **global, context-invariant** preference strengths of each LLM. This homogeneity assumption is restrictive, and motivates the heterogeneous extension.
+Identification is obtained by fixing one alternative’s strength or imposing $\sum_{k=1}^K \theta_k = 0$.
 
 ---
 
-### Heterogeneity-Enriched Bradley–Terry Model
+## 2. Heterogeneity-Enriched Bradley–Terry Model
 
-To allow performance to vary with question characteristics, we enrich the BT model by allowing the strength parameters to depend on observed covariates $X_i$ (e.g., text embeddings or metadata). Motivated by the structural deep learning framework of Farrell, Liang, and Misra (2025), we treat the structural parameters as flexible functions of $X_i$ while preserving the BT form and its economic interpretation.
-
-For each alternative $k$, define a content-dependent utility
+To allow strengths to vary with prompt characteristics, we generalize the BT utilities to functions of covariates $X_i$:
 
 $$
-U_k(X_i) = \lambda_k(X_i).
+\lambda(X_i)
+=
+\big(\lambda_1(X_i),\ldots,\lambda_K(X_i)\big)^\top.
 $$
 
-Collect these into the vector
+The heterogeneous BT likelihood is then
 
 $$
-\lambda(X_i) = (\lambda_1(X_i),\ldots,\lambda_K(X_i))^\top.
+\Pr(Y_i = 1 \mid X_i, D_i)
+=
+\Lambda\big(D_i^\top \lambda(X_i)\big).
 $$
 
-The heterogeneous BT specification becomes
-
-$$
-\Pr(Y_i = 1 \mid X_i, D_i) = \Lambda\big(D_i^\top \lambda(X_i)\big).
-$$
-
-Thus, we maintain the **pooled structural form** of the BT model while replacing the fixed parameter vector $\theta$ with a **learned function** $\lambda(\cdot)$ mapping features to model-specific utilities.
-
-This preserves the structural meaning of the Bradley–Terry model while allowing:
-
-- rich, nonparametric dependence of performance on prompt characteristics,
-- context-conditional pairwise comparisons,
-- heterogeneity-aware model ranking and evaluation.
+This preserves the Bradley–Terry structure while allowing nonparametric dependence on $X_i$.
 
 ---
 
-### Estimation via Structural Deep Learning and Orthogonal Influence Functions
+## 3. Structural Loss and Parameter Network
 
-Our estimator uses the structural semi-parametric framework of Farrell, Liang, and Misra (2025) to justify the form of the enrichment, the use of deep networks for nuisance components, and the construction of orthogonal influence functions for inference.
-
-Denote the Bradley–Terry loss (negative log-likelihood contribution) by
+Define the negative log-likelihood contribution
 
 $$
-\ell_i(\lambda(X_i)) 
-= -\Big[
-Y_i \log\Lambda(D_i^\top \lambda(X_i)) 
-+ (1 - Y_i)\log\big(1 - \Lambda(D_i^\top \lambda(X_i))\big)
+\ell_i(\lambda(X_i))
+=
+-
+\Big[
+Y_i \log \Lambda(D_i^\top \lambda(X_i))
++
+(1 - Y_i)\log\big(1 - \Lambda(D_i^\top \lambda(X_i))\big)
 \Big].
 $$
 
-The structural loss minimized by the BT network is
+We estimate $\lambda(\cdot)$ via a structural deep neural network:
 
 $$
-\frac{1}{n} \sum_{i=1}^n \ell_i(\lambda(X_i)),
+\hat{\lambda}
+=
+\arg\min_{\lambda \in \mathcal{F}}
+\frac{1}{n}
+\sum_{i=1}^n
+\ell_i(\lambda(X_i)),
 $$
 
-which preserves the economic model rather than a generic predictive objective.
+where $\mathcal{F}$ is a class of neural networks that output $\lambda(X_i)$ and pass it through the BT index $D_i^\top \lambda(X_i)$.
 
-We estimate two nuisance components:
+We also estimate the conditional Hessian
 
-1. **BT Network (parameter network)**
-   - Inputs: $X_i$  
-   - Outputs: $\lambda(X_i)$  
-   - Passes through $D_i^\top \lambda(X_i)$ and the logistic link.
+$$
+H(X_i)
+=
+\mathbb{E}\!\left[
+\ell_{\lambda\lambda, i}(\lambda(X_i)) \mid X_i
+\right],
+$$
 
-2. **Hessian Network (conditional curvature)**
-   - Approximates the conditional second derivative of the structural loss:
-     $$
-     H(X_i) = \mathbb{E}[\ell_{\lambda\lambda,i}(\lambda(X_i)) \mid X_i].
-     $$
-   - Required for the orthogonal influence function.
-
-Both networks are trained via **judge-aware cross-fitting**: partitioning data so that all observations evaluated by the same judge remain in one fold, training on $K-1$ folds, and predicting on the held-out fold.
-
-This ensures the orthogonality condition necessary for valid inference.
+using a separate neural network. Both networks are trained with *clustered* cross-fitting to respect judge-level dependence (Chiang et al. 2021).
 
 ---
 
-### Orthogonal Influence Function Estimation
+## 4. Target Parameter and Correct Orthogonal Signal
 
-Let the low-dimensional target parameter be a functional of $\lambda(\cdot)$, for example:
-
-- mean heterogeneous utility for model $k$:
-  $$
-  \theta_k = \mathbb{E}[\lambda_k(X)],
-  $$
-- mean pairwise performance gap:
-  $$
-  \tau_{k,j} = \mathbb{E}[\lambda_k(X) - \lambda_j(X)].
-  $$
-
-Following Farrell–Liang–Misra, the orthogonal score takes the form:
+For alternative $k$, our estimand is the heterogeneous mean utility:
 
 $$
-\psi(W_i; \theta, \eta) 
-= \varphi(W_i; \eta) - \theta,
-\qquad \eta = \{\lambda(\cdot), H(\cdot)\}.
+\theta_k = \mathbb{E}[\lambda_k(X)].
 $$
 
-For the heterogeneous BT model, the orthogonal signal is
+Let
+
+- $s_i = \ell_{\lambda, i}(\lambda(X_i)) \in \mathbb{R}^K$ be the score,
+- $H(X_i) \in \mathbb{R}^{K \times K}$ the conditional Hessian,
+- $e_k$ the $k$-th standard basis vector.
+
+The **Neyman-orthogonal signal** for $\theta_k$ is
 
 $$
-\varphi(W_i; \eta) 
-= \Gamma(X_i)^\top H(X_i)^{-1}s_i,
+\psi_k(W_i; \eta)
+=
+\lambda_k(X_i)
++
+e_k^\top H(X_i)^{-1} s_i,
+\qquad
+\eta = \{\lambda(\cdot), H(\cdot)\}.
 $$
 
-where:
+This matches the enriched influence-function structure of Farrell, Liang, and Misra (2025) and ensures robustness to first-stage estimation.
 
-- $s_i$ is the score of the BT likelihood with respect to $\lambda(X_i)$,
-- $H(X_i)$ is the conditional negative Hessian,
-- $\Gamma(X_i)$ selects the target component (e.g. a unit vector for $\theta_k$).
-
-The resulting estimator is
-
-$$
-\hat{\theta}
-= \frac{1}{n} \sum_{i=1}^n 
-\Gamma(X_i)^\top \hat{H}(X_i)^{-1} \hat{s}_i,
-$$
-
-which is asymptotically linear and supports standard confidence intervals even though the nuisance components are learned by deep neural networks.
+The correction term $e_k^\top H^{-1}s$ removes first-stage error and is the semiparametric analogue of the familiar parametric influence adjustment.
 
 ---
 
-### Nonparametric Heterogeneity Analysis
+## 5. Cross-Fitted Estimator
 
-Following Chernozhukov et al. (2025), the orthogonal signal enables nonparametric analysis of how preference surfaces vary across **lower-dimensional representations** of $X_i$.
+With cross-fitted nuisance estimates $\hat{\lambda}$ and $\hat{H}$, the estimator is
 
-For example:
+$$
+\hat{\theta}_k
+=
+\frac{1}{n}
+\sum_{i=1}^n
+\left[
+\hat{\lambda}_k(X_i)
++
+e_k^\top \hat{H}(X_i)^{-1} \hat{s}_i
+\right],
+$$
 
-- embed each prompt using an LLM,
-- obtain zero-shot topic probabilities $p_{\text{topic}}(X_i)$ from the same embedding model,
-- estimate relationships such as
-  $$
-  \mathbb{E}[\lambda_k(X) \mid p_{\text{topic}}(X)=s],
-  \quad
-  \mathbb{E}[\lambda_k(X) - \lambda_j(X) \mid p_{\text{topic}}(X)=s],
-  $$
-  using nonparametric smoothing with influence-function-adjusted confidence bands.
+where $\hat{s}_i = \ell_{\lambda,i}(\hat{\lambda}(X_i))$.
 
-This yields interpretable, statistically disciplined descriptions of how model performance varies across task domains (e.g., coding, math, reasoning, summarization).
+This estimator is asymptotically linear and supports uniform confidence bands even under high-dimensional nuisance estimation.
 
 ---
 
-### Routing and Policy Design
+## 6. Heterogeneity Analysis
 
-The estimated $\lambda_k(X)$ forms a structural utility index mapping from prompt features $X$ to model performance. This supports context-aware routing:
+Given $\hat{\lambda}(X)$ and orthogonal signals, we can recover heterogeneous performance across:
 
-1. compute $\hat{\lambda}(X_{\text{new}})$,
-2. optionally compute task probabilities $p_{\text{task}}(X_{\text{new}})$,
-3. route to the alternative $k$ with highest predicted utility.
+- embedding dimensions,
+- topics,
+- metadata/features,
+- prompt characteristics.
 
-Because the entire inference pipeline is orthogonalized and cross-fitted, uncertainty-aware routing and robust comparison policies are feasible, offering a principled replacement for ad hoc leaderboard rankings.
+For any low-dimensional representation $Z = g(X)$, we can estimate:
+
+$$
+\mathbb{E}[\lambda_k(X) \mid Z = s],
+\quad
+\mathbb{E}[\lambda_k(X) - \lambda_j(X) \mid Z = s],
+$$
+
+using nonparametric regression and the orthogonal-signal construction of Chernozhukov et al. (2022, 2025).
+
+This enables interpretable preference surfaces and uncertainty-aware routing.
+
+---
+
+## 7. References
+
+**Farrell, M., Liang, T., Misra, S. (2025).**  
+*Deep Learning for Individual Heterogeneity.* arXiv:2010.14694.
+
+**Chernozhukov, V., Newey, W., Singh, R. (2022).**  
+*Automatic Debiased Machine Learning via Influence Functions.* arXiv:2112.13398.
+
+**Chernozhukov, V., et al. (2025).**  
+*Conditional and Functional Estimation via Neyman Orthogonal Scores.* Working paper.
+
+**Chiang, H. D., Kato, K., Sasaki, Y. (2021).**  
+*Cross-Fitting and Orthogonal Inference with Clustered Dependence.* arXiv:2104.06575.
+
 
 
 ## Codebase Overview
