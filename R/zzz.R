@@ -35,6 +35,12 @@ source_dir = function(path, recursive = TRUE) {
 #' @return NULL (sources files as side effect)
 #' @export
 load_all = function() {
+  # Load required packages first
+  if (!requireNamespace("torch", quietly = TRUE)) {
+    stop("torch package is required but not installed")
+  }
+  library(torch)
+  
   # Source in dependency order
   source_dir("data", recursive = FALSE)
   source_dir("utils", recursive = FALSE)
