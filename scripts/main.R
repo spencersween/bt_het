@@ -135,4 +135,3 @@ save(fit, bt_classical, lambda, lambda_sorted,
      file = "results/crossfit_results.RData")
 
 cat("Results saved to results/crossfit_results.RData\n")
-

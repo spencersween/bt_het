@@ -1,6 +1,220 @@
-# Heterogeneous Bradley-Terry Models with Torch
+# Heterogeneous Bradley-Terry Models with Torch and R
 
-This package implements heterogeneous Bradley-Terry models using neural networks for preference learning, with support for cross-fitting and influence function estimation.
+This package implements semi-parametric estimation of Bradley-Terry models with heterogeneity-enriched preference parameters using structural deep neural networks in R and torch. The econometric framework builds on Farrell, Liang, and Misra (2025) and is applied here to analyze Chatbot Arena rankings. The approach supports nonparametric heterogeneity analysis in pairwise AI model comparisons, enabling interpretable assessment of model performance across different predicted conversation tasks and offering a foundation for data driven routing and model selection policies.
+
+## Methodology
+
+### Classical Bradley Terry Model
+
+The classical Bradley Terry (BT) model provides a probabilistic structure for paired comparisons among items \(m \in \{1,\dots,M\}\). Each item is associated with a latent strength parameter \(\theta_m\). For a comparison between items \(i\) and \(j\), the probability that \(i\) is preferred is
+
+\[
+\Pr(i \succ j)
+=
+\frac{\exp(\theta_i)}{\exp(\theta_i) + \exp(\theta_j)}
+=
+\Lambda(\theta_i - \theta_j),
+\]
+
+where \(\Lambda(\cdot)\) is the logistic function.
+
+Given observations \(t = 1,\dots,T\), let:
+
+- \(Y_t\): outcome (1 if \(i_t\) is chosen over \(j_t\), else 0)
+- \(i_t, j_t\): indices of compared models
+
+The log likelihood is
+
+\[
+\ell(\theta)
+=
+\sum_{t=1}^T
+\left[
+Y_t \log \Lambda(\theta_{i_t} - \theta_{j_t})
++
+(1 - Y_t) \log(1 - \Lambda(\theta_{i_t} - \theta_{j_t}))
+\right],
+\]
+
+with an identification constraint such as \(\sum_m \theta_m = 0\).
+
+In the Chatbot Arena context, each model’s \(\theta_m\) represents its global strength, assumed constant across question types. This homogeneity assumption motivates the heterogeneous extension below.
+
+---
+
+### Heterogeneity Enriched Bradley Terry Model
+
+Performance of large language models varies systematically across question types. To capture this, the BT parameters are allowed to depend on question level covariates \(X_t\), such as prompt embeddings or metadata.
+
+For each model \(m\), define a content dependent utility
+
+\[
+U_m(X_t) = \lambda_m(X_t),
+\]
+
+estimated via a neural network. For a comparison between models \(i\) and \(j\):
+
+\[
+\Pr(i \succ j \mid X_t)
+=
+\Lambda\big(\lambda_i(X_t) - \lambda_j(X_t)\big).
+\]
+
+Equivalently, with a design contrast vector \(D_t\):
+
+\[
+\Pr(Y_t = 1 \mid X_t, D_t)
+=
+\Lambda\!\left( D_t^\top \lambda(X_t) \right),
+\]
+
+where \(\lambda(X_t)\) contains all model specific heterogeneous coefficients.
+
+This framework enables:
+
+- conditional performance evaluation across semantic dimensions,
+- nonparametric relationships between question characteristics and model strengths,
+- richer comparisons than global BT rankings.
+
+The embeddings serve as structured covariates that index where in semantic space each question lies, allowing the model to learn how relative strengths evolve across question types.
+
+---
+
+### Estimation via Structural Deep Learning and Orthogonal Influence Functions
+
+The estimation framework follows the structural deep learning template of Farrell, Liang, and Misra. The goal is valid semiparametric inference on low dimensional functionals while using flexible neural networks for high dimensional nuisance components.
+
+The pipeline consists of:
+
+1. **BT Network**  
+   Learns heterogeneous parameters \(\lambda(X)\) using a neural network with a logistic link.
+
+2. **Hessian Network**  
+   Learns the conditional Hessian \(H(X)\), which captures second derivative curvature of the BT log likelihood.
+
+3. **Cross Fitting (Judge Aware)**  
+   Ensures out of fold predictions for both networks, enabling valid orthogonal moment conditions.
+
+---
+
+### Cross Fitting
+
+Data are partitioned into \(K\) folds such that all comparisons judged by the same individual remain within a single fold.
+
+For each fold \(k\):
+
+- train BT and Hessian networks on all data except fold \(k\),
+- generate out of fold predictions \(\hat{\lambda}^{(-k)}(X_t)\) and \(\hat{H}^{(-k)}(X_t)\) for all observations in fold \(k\).
+
+Stacking across folds yields entire sample out of fold nuisance estimates.
+
+This procedure is essential because Neyman orthogonality requires that nuisance evaluations are computed on data not used for training the nuisance models.
+
+---
+
+### Orthogonal Influence Function Estimation
+
+Suppose the target parameter \(\theta\) is a functional of the heterogeneous coefficients, for example:
+
+- average model strength:  
+  \(\theta_m = \mathbb{E}[\lambda_m(X)]\),
+
+- average pairwise gap:  
+  \(\tau_{m,n} = \mathbb{E}[\lambda_m(X) - \lambda_n(X)]\).
+
+An orthogonal score takes the form
+
+\[
+\psi(W_t; \theta, \eta)
+=
+\varphi(W_t; \eta) - \theta,
+\]
+
+with nuisance functions \(\eta = \{\lambda(\cdot), H(\cdot)\}\).
+
+For generalized linear models, a convenient choice is
+
+\[
+\varphi(W_t; \eta)
+=
+\Gamma(X_t)^\top
+H(X_t)^{-1}
+s(W_t; \lambda(X_t)),
+\]
+
+where:
+
+- \(s(W_t; \lambda(X_t))\) is the score of the logistic BT likelihood,
+- \(H(X_t)\) is the conditional negative Hessian,
+- \(\Gamma(X_t)\) selects the component of interest.
+
+The debiased estimator is
+
+\[
+\hat{\theta}
+=
+\frac{1}{T}
+\sum_t
+\Gamma(X_t)^\top
+\hat{H}(X_t)^{-1}
+\hat{s}(W_t).
+\]
+
+This estimator is asymptotically linear with valid variance formulas even when neural networks are used for nuisance estimation.
+
+---
+
+### Heterogeneity Analysis
+
+The influence function output enables nonparametric or semiparametric analysis of model performance across the question embedding space.
+
+Analysts can compute:
+
+- binscatter plots of \(\lambda_m(X)\) against semantic features,
+- conditional performance gaps across different regions of the embedding space,
+- standard errors derived from influence functions.
+
+This avoids imposing restrictive parametric structures on performance heterogeneity.
+
+---
+
+### Zero Shot Topic Classification and Task Level Analysis
+
+Because \(X\) includes embedding vectors, a source model can provide topic probabilities such as:
+
+- math/reasoning,
+- code generation,
+- summarization/editing,
+- open ended QA.
+
+Let \(p_{\text{topic}}(X)\) denote such topic probabilities. One can examine:
+
+\[
+\mathbb{E}[\lambda_m(X) \mid p_{\text{topic}}(X) = s],
+\qquad
+\mathbb{E}[\lambda_m(X) - \lambda_n(X) \mid p_{\text{topic}}(X) = s].
+\]
+
+This provides interpretable insights into how LLMs perform across semantic tasks and user needs.
+
+---
+
+### Routing and Policy Design
+
+The heterogeneous BT coefficients define a mapping from question embeddings to predicted model utility. This enables routing strategies:
+
+1. compute \(\hat{\lambda}_m(X_{\text{new}})\) for a new query,
+2. compute topic probabilities \(p_{\text{topic}}(X_{\text{new}})\),
+3. route to the model with the highest predicted context specific utility.
+
+Influence function based uncertainty quantification allows:
+
+- uncertainty aware routing,
+- interpretable selection rules,
+- improved efficiency over static global rankings,
+- better deployments that align with user question types.
+
+---
 
 ## Overview
 
