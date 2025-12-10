@@ -1,3 +1,5 @@
+setwd("~/bt_het")
+
 #!/usr/bin/env Rscript
 # Main execution script for Heterogeneous Bradley-Terry model
 
@@ -74,7 +76,9 @@ cat("Preparing features for neural network\n")
 cat("============================================================\n")
 
 features = prepare_features(bt_df, final_df1, final_df2)
-X = features$X
+X = (features$X)
+X = as.data.frame(features$X) %>% dplyr::select(starts_with("X_"), is_english, P) %>% as.matrix()
+# X = as.matrix(X[,"P"])
 Y = features$Y
 D = features$D
 P = features$P
@@ -85,7 +89,7 @@ model_names_km1 = features$model_names_km1
 
 # Create cross-validation folds
 cat("Creating cross-validation folds...\n")
-S = create_folds(bt_df, nfolds = 10, seed = 123)
+S = create_folds(bt_df, nfolds = 100, seed = 123)
 
 ############################################################
 # 4. Run neural net with cross-fitting (heterogeneous BT)
@@ -102,22 +106,22 @@ fit = train_crossfit(
   D             = D,
   Y             = Y,
   S             = S,
-  hidden_bt     = rep(100, 2),
-  dropout_bt    = rep(0.1, 2),
-  use_batchnorm_bt = FALSE,
-  hidden_h      = rep(100, 2),
-  dropout_h     = rep(0.1, 2),
-  use_batchnorm_h  = FALSE,
-  lr_bt         = 1e-3,
-  lr_h          = 1e-3,
-  weight_decay_bt = 1e-3,
-  weight_decay_h  = 1e-3,
+  hidden_bt     = rep(5, 3),
+  dropout_bt    = rep(0.01, 3),
+  use_batchnorm_bt = TRUE,
+  hidden_h      = rep(5, 3),
+  dropout_h     = rep(0.01, 3),
+  use_batchnorm_h  = TRUE,
+  lr_bt         = 1e-1,
+  lr_h          = 1e-1,
+  weight_decay_bt = 1e-4,
+  weight_decay_h  = 1e-4,
   batch_size_bt = 2^15,
   batch_size_h  = 2^15,
   max_epochs_bt = 1000,
   max_epochs_h  = 1000,
-  patience_bt   = 20,
-  patience_h    = 20,
+  patience_bt   = 5,
+  patience_h    = 5,
   device        = device,
   verbose       = TRUE,
   hess_ridge    = 1e-5
@@ -129,9 +133,11 @@ cat("\nCross-fitting completed successfully!\n")
 # 5. Save results
 ############################################################
 
-cat("\nSaving results...\n")
-save(fit, bt_classical, lambda, lambda_sorted, 
-     X, Y, D, P, J, S, bt_df,
-     file = "results/crossfit_results.RData")
+# cat("\nSaving results...\n")
+# save(fit, bt_classical, lambda, lambda_sorted, 
+#      X, Y, D, P, J, S, bt_df,
+#      file = "results/crossfit_results.RData")
+# 
+# cat("Results saved to results/crossfit_results.RData\n")
 
-cat("Results saved to results/crossfit_results.RData\n")
+

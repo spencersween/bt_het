@@ -152,82 +152,94 @@ tau = as.data.frame(psi_oof) %>%
   dplyr::mutate(row = dplyr::row_number()) %>%
   tidyr::pivot_longer(-row, names_to = "model", values_to = "lambda_hat") %>%
   dplyr::filter(is.finite(lambda_hat)) %>%
-  dplyr::filter(model == "D_claude-v1") %>%
+  dplyr::filter(model == "D_vicuna-7b") %>%
   dplyr::pull(lambda_hat) %>%
   as.numeric()
 
 p_bins = binsreg::binsreg(
   y       = tau,
   x       = P,
-  dots    = c(2, 2),
+  dots    = c(2,2),
   cb      = c(3, 3),
-  polyreg = 3,
+  polyreg = 1,
   randcut = 1, 
-  cluster = J
+  cluster = J, nsims = 2000, simsgrid=50
 )
 
 print(p_bins$bins_plot + geom_hline(yintercept = 0, linetype = "dashed"))
 ggsave("plots/binsreg_claude-v1.png", p_bins$bins_plot + geom_hline(yintercept = 0, linetype = "dashed"), 
        width = 10, height = 6)
 
-utau = lambda_uncond_df %>%
-  dplyr::filter(model == "claude-v1") %>%
-  dplyr::select(lambda_uncond) %>%
-  as.matrix() %>%
-  as.numeric()
 
-p_tau_dens = dplyr::tibble(tau = tau) %>%
-  ggplot2::ggplot(aes(x = tau)) +
-  geom_density() +
-  geom_vline(xintercept = utau) +
-  labs(
-    title = "Density of tau for claude-v1 vs unconditional coefficient",
-    x = "tau (heterogeneous lambda)",
-    y = "Density"
-  ) +
-  theme_minimal()
+point_estimates = colMeans(psi_oof)
+standard_errors = sqrt(diag(sandwich::vcovCL(lm(psi_oof ~ 1), cluster = J)))
+models = colnames(psi_oof)
+results = tibble(Models = models, Point_Estimates = point_estimates, Standard_Errors = standard_errors) %>% 
+  mutate(Point_Estimates = round(Point_Estimates,3),
+         Standard_Errors = round(Standard_Errors,3)) %>% 
+  arrange(-Point_Estimates) %>% 
+  print()
 
-print(p_tau_dens)
-ggsave("plots/tau_density_claude-v1.png", p_tau_dens, width = 8, height = 6)
 
-############################################################
-# 7. Save tables and summaries
-############################################################
 
-cat("\n============================================================\n")
-cat("Saving tables and summaries\n")
-cat("============================================================\n")
-
-# Ensure tables directory exists
-dir.create("tables", showWarnings = FALSE)
-
-# Save coefficient comparison
-write.csv(coef_compare, 
-          "tables/coefficient_comparison.csv", 
-          row.names = FALSE)
-
-# Save metrics summary
-metrics_summary = data.frame(
-  metric = c("AUC", "Log Loss"),
-  value = c(oof_auc, oof_logloss)
-)
-write.csv(metrics_summary, 
-          "tables/metrics_summary.csv", 
-          row.names = FALSE)
-
-# Save lambda summary (heterogeneous vs unconditional)
-lambda_summary = lambda_nn_df %>%
-  dplyr::left_join(lambda_uncond_df, by = "model") %>%
-  dplyr::arrange(desc(lambda_uncond))
-
-write.csv(lambda_summary, 
-          "tables/lambda_summary.csv", 
-          row.names = FALSE)
-
-cat("Tables saved to tables/ directory\n")
-cat("\n============================================================\n")
-cat("All analysis complete!\n")
-cat("  - Plots: plots/ directory\n")
-cat("  - Tables: tables/ directory\n")
-cat("============================================================\n")
+# utau = lambda_uncond_df %>%
+#   dplyr::filter(model == "claude-v1") %>%
+#   dplyr::select(lambda_uncond) %>%
+#   as.matrix() %>%
+#   as.numeric()
+# 
+# p_tau_dens = dplyr::tibble(tau = tau) %>%
+#   ggplot2::ggplot(aes(x = tau)) +
+#   geom_density() +
+#   geom_vline(xintercept = utau) +
+#   labs(
+#     title = "Density of tau for claude-v1 vs unconditional coefficient",
+#     x = "tau (heterogeneous lambda)",
+#     y = "Density"
+#   ) +
+#   theme_minimal()
+# 
+# print(p_tau_dens)
+# ggsave("plots/tau_density_claude-v1.png", p_tau_dens, width = 8, height = 6)
+# 
+# ############################################################
+# # 7. Save tables and summaries
+# ############################################################
+# 
+# cat("\n============================================================\n")
+# cat("Saving tables and summaries\n")
+# cat("============================================================\n")
+# 
+# # Ensure tables directory exists
+# dir.create("tables", showWarnings = FALSE)
+# 
+# # Save coefficient comparison
+# write.csv(coef_compare, 
+#           "tables/coefficient_comparison.csv", 
+#           row.names = FALSE)
+# 
+# # Save metrics summary
+# metrics_summary = data.frame(
+#   metric = c("AUC", "Log Loss"),
+#   value = c(oof_auc, oof_logloss)
+# )
+# write.csv(metrics_summary, 
+#           "tables/metrics_summary.csv", 
+#           row.names = FALSE)
+# 
+# # Save lambda summary (heterogeneous vs unconditional)
+# lambda_summary = lambda_nn_df %>%
+#   dplyr::left_join(lambda_uncond_df, by = "model") %>%
+#   dplyr::arrange(desc(lambda_uncond))
+# 
+# write.csv(lambda_summary, 
+#           "tables/lambda_summary.csv", 
+#           row.names = FALSE)
+# 
+# cat("Tables saved to tables/ directory\n")
+# cat("\n============================================================\n")
+# cat("All analysis complete!\n")
+# cat("  - Plots: plots/ directory\n")
+# cat("  - Tables: tables/ directory\n")
+# cat("============================================================\n")
 

@@ -8,7 +8,7 @@
 #' @param hidden Hidden layer sizes (vector)
 #' @param dropout Dropout rates (scalar or vector)
 #' @param use_batchnorm Whether to use batch normalization
-#' @param lr Learning rate
+#' @param lr Initial learning rate
 #' @param weight_decay Weight decay
 #' @param batch_size Batch size
 #' @param max_epochs Maximum epochs
@@ -54,6 +54,23 @@ train_bt_single = function(X, D, Y,
     weight_decay = weight_decay
   )
   
+  # Plateau learning rate scheduler (ReduceLROnPlateau)
+  lr_factor   = 0.5
+  lr_patience = max(1L, floor(patience / 2))
+  min_lr      = 1e-6
+  
+  scheduler = torch::lr_reduce_on_plateau(
+    optimizer = opt,
+    mode      = "min",
+    factor    = lr_factor,
+    patience  = lr_patience,
+    threshold = 1e-4,
+    cooldown  = 0,
+    min_lr    = min_lr,
+    eps       = 1e-8,
+    verbose   = verbose
+  )
+  
   best_val          = Inf
   best_state        = NULL
   epochs_no_improve = 0
@@ -85,6 +102,17 @@ train_bt_single = function(X, D, Y,
     train_loss = run_loss / seen
     val_loss   = evaluate_loader(model, val_loader, device = device)
     
+    # Step scheduler on validation loss
+    scheduler$step(val_loss)
+    
+    if (verbose) {
+      current_lr = opt$param_groups[[1]]$lr
+      cat(sprintf(
+        "  [Stage 1] epoch %03d  train=%.6f  val=%.6f  lr=%.6g\n",
+        epoch, train_loss, val_loss, current_lr
+      ))
+    }
+    
     hist = rbind(
       hist,
       data.frame(epoch = epoch, train_loss = train_loss, val_loss = val_loss)
@@ -98,11 +126,11 @@ train_bt_single = function(X, D, Y,
       epochs_no_improve = epochs_no_improve + 1
     }
     
-    if (verbose) {
-      cat(sprintf("  [Stage 1] epoch %03d  train=%.6f  val=%.6f\n", epoch, train_loss, val_loss))
-    }
     if (epochs_no_improve >= patience) {
-      if (verbose) cat(sprintf("  [Stage 1] early stopping at epoch %d (best val=%.6f)\n", epoch, best_val))
+      if (verbose) {
+        cat(sprintf("  [Stage 1] early stopping at epoch %d (best val=%.6f)\n",
+                    epoch, best_val))
+      }
       break
     }
   }
@@ -139,7 +167,7 @@ predict_bt_full = function(model, X, D, batch_size = 2048, device = "cpu") {
       eta        = compute_eta_vec(lambda_hat, design)
       p          = eta$sigmoid()
     })
-    prob_list[[length(prob_list) + 1L]]   = as.numeric(p$cpu())
+    prob_list[[length(prob_list) + 1L]]     = as.numeric(p$cpu())
     lambda_list[[length(lambda_list) + 1L]] = as_array(lambda_hat$cpu())
   })
   
@@ -149,4 +177,3 @@ predict_bt_full = function(model, X, D, batch_size = 2048, device = "cpu") {
   
   list(prob = prob, eta = eta, lambda = lambda)
 }
-

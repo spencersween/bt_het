@@ -8,11 +8,11 @@
 #' @param hidden Hidden layer sizes (vector)
 #' @param dropout Dropout rates (scalar or vector)
 #' @param use_batchnorm Whether to use batch normalization
-#' @param lr Learning rate
+#' @param lr Initial learning rate
 #' @param weight_decay Weight decay
 #' @param batch_size Batch size
 #' @param max_epochs Maximum epochs
-#' @param patience Early stopping patience
+#' @param patience Early stopping patience (in epochs)
 #' @param device Device ("cpu" or "cuda")
 #' @param verbose Whether to print progress
 #' @return List with model and training history
@@ -56,6 +56,24 @@ train_hessian_lower_single = function(X, D,
     weight_decay = weight_decay
   )
   
+  # Plateau learning rate scheduler (ReduceLROnPlateau)
+  # You can tune factor / lr_patience / min_lr as needed
+  lr_factor   = 0.5          # multiply lr by this when plateau
+  lr_patience = max(1L, floor(patience / 2))  # epochs with no improvement before lr reduction
+  min_lr      = 1e-6
+  
+  scheduler = torch::lr_reduce_on_plateau(
+    optimizer = opt,
+    mode      = "min",
+    factor    = lr_factor,
+    patience  = lr_patience,
+    threshold = 1e-4,
+    cooldown  = 0,
+    min_lr    = min_lr,
+    eps       = 1e-8,
+    verbose   = verbose
+  )
+  
   mse_loss         = nn_mse_loss()
   best_val         = Inf
   best_state       = NULL
@@ -85,6 +103,17 @@ train_hessian_lower_single = function(X, D,
     train_loss = run_loss / seen
     val_loss   = evaluate_hessian_loader(model, val_loader, device = device)
     
+    # Step the ReduceLROnPlateau scheduler on validation loss
+    scheduler$step(val_loss)
+    
+    if (verbose) {
+      current_lr = opt$param_groups[[1]]$lr
+      cat(sprintf(
+        "  [Stage 2] epoch %03d  train=%.6f  val=%.6f  lr=%.6g\n",
+        epoch, train_loss, val_loss, current_lr
+      ))
+    }
+    
     hist = rbind(
       hist,
       data.frame(epoch = epoch, train_loss = train_loss, val_loss = val_loss)
@@ -98,11 +127,11 @@ train_hessian_lower_single = function(X, D,
       epochs_no_improv = epochs_no_improv + 1
     }
     
-    if (verbose) {
-      cat(sprintf("  [Stage 2] epoch %03d  train=%.6f  val=%.6f\n", epoch, train_loss, val_loss))
-    }
     if (epochs_no_improv >= patience) {
-      if (verbose) cat(sprintf("  [Stage 2] early stopping at epoch %d (best val=%.6f)\n", epoch, best_val))
+      if (verbose) {
+        cat(sprintf("  [Stage 2] early stopping at epoch %d (best val=%.6f)\n",
+                    epoch, best_val))
+      }
       break
     }
   }
@@ -111,4 +140,3 @@ train_hessian_lower_single = function(X, D,
   
   list(model = model$to(device = "cpu"), history = hist)
 }
-

@@ -1,24 +1,22 @@
 # Heterogeneous Bradley-Terry Models with Torch and R
 
-This repository provides a general implementation of heterogeneity-enriched Bradley–Terry models using structural deep neural networks in R and torch. The estimator’s form and statistical guarantees rely on the semiparametric results of Farrell, Liang, and Misra (2025), and extend the classical paired comparison model to settings with high-dimensional, context-dependent covariates. The methodology integrates tools from causal inference, structural econometrics, and machine learning to recover preference parameters that vary with observed features.
+This repository provides a general implementation of heterogeneity-enriched Bradley–Terry models using structural deep neural networks in R and torch. The estimator’s form and statistical guarantees rely on the semiparametric results of Farrell, Liang, and Misra (2021), and extend the classical paired comparison model to settings with high-dimensional, context-dependent covariates. The methodology integrates tools from causal inference, structural econometrics, and machine learning to recover preference parameters that vary with observed features.
 
-The framework delivers three core capabilities. First, it enables heterogeneity-aware structural modeling of pairwise choice behavior, allowing latent preference differences to depend on high-dimensional descriptors such as conversation embeddings in AI evaluation problems. Second, it provides a disciplined procedure for statistical inference on pairwise comparisons after controlling for covariates, using orthogonal influence functions and judge-aware *clustered* cross-fitting following Chiang et al. (2021). Third, it yields a basis for nonparametric interpretation: following Chernozhukov et al. (2022, 2025), orthogonal signals can be used for valid estimation of how preference surfaces vary across lower-dimensional representations of the inputs (e.g., topic probabilities derived from zero-shot classification). This functionality will be added to the codebase soon.
+The framework delivers three core capabilities. First, it enables heterogeneity-aware structural modeling of pairwise choice behavior, allowing latent preference differences to depend on high-dimensional descriptors such as conversation embeddings in AI evaluation problems. Second, it provides a disciplined procedure for statistical inference on pairwise comparisons after controlling for covariates, using orthogonal influence functions and judge-aware *clustered* cross-fitting following Chiang et al. (2021). Third, it provides a foundation for nonparametric analysis: building on the conditional influence-function framework of Chernozhukov et al. (2024), the orthogonal influence functions can be reweighted and smoothed to estimate how choice preference rankings vary over lower-dimensional, interpretable representations of the inputs (for example, topic probabilities from zero-shot classifications). This functionality will be added to the codebase soon.
 
-As an applied exercise, the repository implements the estimator on LMSYS Chatbot Arena rankings. This application demonstrates how the method recovers context-dependent performance profiles for language models, quantifies uncertainty in pairwise preference gaps, and provides a principled alternative to leaderboard metrics.
+As an applied exercise, we implement the estimator on LMSYS Chatbot Arena data, using it to recover context-dependent performance profiles for language models and quantify uncertainty in pairwise preference gaps. This provides a basis for studying heterogeneous rankings across different types of conversations (e.g., coding, writing, life advice) in ongoing work.
 
 ### References
 
-**Farrell, M., Liang, T., Misra, S. (2025).**  
-*Deep Learning for Individual Heterogeneity.* arXiv:2010.14694.
+Farrell, M. H., Liang, T., and Misra, S. (2021).  
+*Deep Learning for Individual Heterogeneity.* arXiv:2010.14694.  
 
-**Chernozhukov, V., Newey, W., Singh, R. (2022).**  
-*Automatic Debiased Machine Learning via Influence Functions.* arXiv:2112.13398.
+Chernozhukov, V., Newey, W. K., and Syrgkanis, V. (2024).  
+*Conditional Influence Functions.* arXiv:2412.18080.  
 
-**Chernozhukov, V., et al. (2025).**  
-*Conditional and Functional Estimation via Neyman Orthogonal Scores.* Working paper.
+Chiang, H. D., Kato, K., Ma, Y., and Sasaki, Y. (2021).  
+*Multiway Cluster Robust Double/Debiased Machine Learning.* arXiv:1909.03489.
 
-**Chiang, H. D., Kato, K., Sasaki, Y. (2021).**  
-*Cross-Fitting and Orthogonal Inference with Clustered Dependence.* arXiv:2104.06575.
 
 ## Overview
 

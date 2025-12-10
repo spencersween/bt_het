@@ -13,3 +13,5 @@
 ^DESCRIPTION$
 ^README\.md$
 
+^.*\.Rproj$
+^\.Rproj\.user$
