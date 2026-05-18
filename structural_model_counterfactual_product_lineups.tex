@@ -1,0 +1,1250 @@
+
+\documentclass[11pt]{article}
+
+% -----------------------------------------------------------------------------
+% STRUCTURE AND TONE NOTES FOR FUTURE EDITORS / AI AGENTS
+% -----------------------------------------------------------------------------
+% This document is intentionally organized in layers.
+% 1. Page 1 is an executive summary for CEO / stakeholder readers. It should be
+%    clear, plain-language, and focused on why the model is necessary for
+%    counterfactual product-lineup decisions.
+% 2. The main body is a compact economics-style structural model section. Keep
+%    notation consistent across the start stage, completion stage, likelihood,
+%    counterfactual simulation, and migration matrix.
+% 3. The implementation pseudocode is for an engineer or AI coding agent. Keep
+%    boxes short enough to fit cleanly on one page, with explicit page breaks
+%    around long blocks.
+% 4. The appendix is a technical extension for economists and data scientists. It
+%    generalizes observed and unobserved heterogeneity while preserving the same
+%    finite-mixture likelihood logic.
+% 5. Avoid casual language, vague caveats, and unexplained abbreviations. Use a
+%    stakeholder-friendly voice in the executive summary and precise economic
+%    notation in the model and appendix.
+% -----------------------------------------------------------------------------
+
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{fancyvrb}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\hypersetup{colorlinks=true,linkcolor=black,urlcolor=black,citecolor=black}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.65em}
+\setlist[itemize]{leftmargin=1.35em,itemsep=0.2em,topsep=0.2em}
+\setlist[enumerate]{leftmargin=1.35em,itemsep=0.25em,topsep=0.25em}
+
+\newcommand{\J}{\mathcal{J}}
+\newcommand{\G}{\mathcal{G}}
+\newcommand{\Sset}{\mathcal{S}}
+\newcommand{\Rset}{\mathcal{R}}
+\newcommand{\Tset}{\mathcal{T}}
+\newcommand{\Bset}{\mathcal{B}}
+\newcommand{\Zset}{\mathcal{Z}}
+\newcommand{\Mset}{\mathcal{M}}
+\newcommand{\Yset}{\mathcal{Y}}
+\newcommand{\Prb}{\Pr}
+\newcommand{\one}{\mathbf{1}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\iv}{\Xi}
+
+\title{A Structural Model of Counterfactual Product Lineups}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+
+\section*{Executive summary}
+
+This model is designed to answer a concrete business question: if we change the product lineup, where will customers go?
+
+The current lineup asks customers to sort across products that combine service types, complexity tiers, and optional add-ons. Customers do not enter that decision process as identical buyers. They arrive with beliefs about their own tax complexity, and they ultimately have true tax complexity that affects what they need and how they complete. Those two objects are not the same. A customer may believe they are low complexity, high complexity, or unknown at the start of the shopping process, and then later face completion choices that depend on their realized tax complexity.
+
+This distinction is central for lineup redesign. Removing explicit complexity tiers from the menu does not remove customer complexity. Customers will still have beliefs about their likely complexity when they decide whether to start, and they will still have true complexity when they decide whether to finish. A counterfactual exercise that ignores those latent states would confuse two things: demand for the current product labels and demand for the underlying product attributes. To forecast a new lineup, we need to separate these pieces.
+
+The model does that by decomposing current demand into structural components: beliefs, true complexity, service preferences, tier preferences, add-on preferences, and price sensitivities. In the start stage, customers decide whether to start and where to start based on their beliefs. For starters, we observe those beliefs through the SLR complexity response in the pre-start shopping experience. In the completion stage, customers choose whether to finish and, if so, which service and add-on bundle to buy. For completers, we observe true complexity from the completed-customer complexity field.
+
+Once estimated, the model gives the population distribution of beliefs and true complexity, not just the distribution among customers who started or completed. That is what allows us to simulate new scenarios. We can replace the current product menu with a proposed scenario, roll selected add-ons into product entitlements, leave other add-ons optional, change prices, and predict the resulting shares of customers who do not start, start but drop, or finish in each scenario product. The key reporting object is a migration matrix: for each current outcome, it shows where those customers are predicted to sort under the new scenario.
+
+\newpage
+
+\section{Product environment}
+
+
+Let
+\[
+\Sset=\{1,\ldots,S\}
+\]
+denote service types and let
+\[
+\Rset=\{1,\ldots,R\}
+\]
+denote ordered complexity tiers. A current-lineup base product is indexed by
+\[
+j\in\J.
+\]
+Each current base product has a service type and a tier:
+\[
+s(j)\in\Sset,
+\qquad
+r(j)\in\Rset.
+\]
+This notation allows different service types to have different tier menus. For example, two service types may have three tiers while another service type may have only one tier.
+
+There is a set of optional add-ons
+\[
+\Mset=\{1,\ldots,M\}.
+\]
+An add-on vector is
+\[
+z=(z_1,\ldots,z_M)\in\{0,1\}^M,
+\]
+where $z_m=1$ means that add-on $m$ is attached to the completion bundle.
+
+\section{Latent complexity and beliefs}
+
+Each customer $i$ has a true tax complexity tier
+\[
+\tau_i\in\Tset=\{1,\ldots,R\}.
+\]
+Larger values denote greater tax complexity.
+
+Each customer also has a start-stage belief class
+\[
+b_i\in\Bset=\Tset\cup\{U\},
+\]
+where $U$ denotes unknown complexity. Beliefs govern start-stage behavior. True complexity governs completion-stage feasibility and completion-stage utility.
+
+The joint population distribution of true complexity and beliefs is
+\[
+\pi_{\tau b}=\Prb(\tau_i=\tau,b_i=b),
+\qquad
+\sum_{\tau\in\Tset}\sum_{b\in\Bset}\pi_{\tau b}=1.
+\]
+This joint distribution is a structural object estimated by the model.
+
+\subsection*{Observed belief signal}
+
+For customers who start, the data contain an SLR complexity response from the pre-start shopping experience. The response is mapped into a recommended complexity class or an unknown category. In the model, this mapped value is the observed belief class $b_i$.
+
+Thus, for starters, the SLR complexity response is treated as the value of the customer's belief under two maintained measurement assumptions: the customer truthfully responds to the pre-start survey, and the mapping from survey responses to recommended complexity correctly recovers the implied belief class.
+
+\subsection*{Observed true complexity among completers}
+
+For completing customers, true complexity is observed from the completed-customer complexity column. Let $\tau_i^{obs}$ denote this observed value. The likelihood uses observed true complexity for completers and integrates over true complexity for non-starters and starters who do not complete.
+
+\section{Timing}
+
+The model has two stages.
+
+\begin{enumerate}
+\item Nature draws $(\tau_i,b_i)$ from $\pi_{\tau b}$.
+\item The customer observes their belief class $b_i$, the start prices, and the anticipated completion environment.
+\item The customer chooses a start option
+\[
+A_i\in\{0\}\cup\J,
+\]
+where $A_i=0$ means no start and $A_i=j$ means starting in base product $j$.
+\item If $A_i\neq 0$, the researcher observes the SLR-based belief class $b_i$.
+\item The customer reaches the completion environment and acts using true complexity $\tau_i$.
+\item The customer chooses a completion option
+\[
+D_i\in\{0\}\cup\J,
+\]
+where $D_i=0$ means no completion and $D_i=k$ means completing base product $k$. If $D_i=k$, the customer also chooses an add-on vector $Z_i=z$.
+\end{enumerate}
+
+Start prices are denoted
+\[
+p_i^S=(p_{ij}^S)_{j\in\J}.
+\]
+Base completion prices are denoted
+\[
+p_i^C=(p_{ik}^C)_{k\in\J}.
+\]
+Add-on prices are denoted
+\[
+p_i^A=(p_{im}^A)_{m\in\Mset}.
+\]
+Base product prices vary across customers in the experiment. Some add-on prices may also vary across customers, while other add-on prices may be fixed. All add-on prices enter the total price of the chosen completion bundle.
+
+\section{Completion feasibility}
+
+Completion feasibility is governed by true complexity. A customer with true complexity $\tau$ may complete only products with tier weakly above $\tau$:
+\[
+\J_\tau=\{k\in\J:r(k)\geq \tau\}.
+\]
+Thus the customer may choose any service type, but only among tiers high enough for their true complexity.
+
+For each feasible base product $k\in\J_\tau$, let
+\[
+\Zset_{k\tau}\subseteq\{0,1\}^M
+\]
+denote the feasible add-on vectors. In the baseline version, every add-on vector is feasible:
+\[
+\Zset_{k\tau}=\{0,1\}^M.
+\]
+
+\section{Completion-stage utility}
+
+The completion-stage choice is a simultaneous bundle choice. The customer chooses either no completion or a bundle $(k,z)$ consisting of a feasible base product and an add-on vector.
+
+The total price of bundle $(k,z)$ is
+\[
+P_i^C(k,z)=p_{ik}^C+\sum_{m\in\Mset}z_m p_{im}^A.
+\]
+The deterministic completion utility for true complexity $\tau$ is
+\[
+v^C_{ikz\tau}
+=
+\alpha^C_{s(k),\tau}
++
+\gamma^C_{r(k),\tau}
++
+h^C_{k\tau}(z;\eta)
+-
+\beta_C P_i^C(k,z).
+\]
+Here $\alpha^C_{s,\tau}$ is the service-type component, $\gamma^C_{r,\tau}$ is the tier component, $h^C_{k\tau}(z;\eta)$ is the add-on component, and $\beta_C$ is the common completion price coefficient. The no-completion utility is normalized to zero.
+
+With Type-I extreme value shocks, the full bundle probability is
+\[
+Q_{ikz\tau}
+=
+\frac{\exp(v^C_{ikz\tau})}
+{1+\sum_{\ell\in\J_\tau}\sum_{z'\in\Zset_{\ell\tau}}\exp(v^C_{i\ell z'\tau})},
+\qquad
+k\in\J_\tau,
+\quad z\in\Zset_{k\tau}.
+\]
+The probability of not completing is
+\[
+Q_{i0\tau}
+=
+\frac{1}
+{1+\sum_{\ell\in\J_\tau}\sum_{z'\in\Zset_{\ell\tau}}\exp(v^C_{i\ell z'\tau})}.
+\]
+
+\section{Simplifying the bundle likelihood}
+
+The full bundle choice can be written more compactly without changing the behavioral model. Define the add-on inclusive value
+\[
+\Xi_{ik\tau}
+=
+\log\left[
+\sum_{z\in\Zset_{k\tau}}
+\exp\left(
+ h^C_{k\tau}(z;\eta)
+ -\beta_C\sum_{m\in\Mset}z_m p_{im}^A
+\right)
+\right].
+\]
+Define the base completion utility inclusive of add-on opportunities:
+\[
+\bar v^C_{ik\tau}
+=
+\alpha^C_{s(k),\tau}
++
+\gamma^C_{r(k),\tau}
+-
+\beta_C p_{ik}^C
++
+\Xi_{ik\tau}.
+\]
+Then the probability of completing base product $k$ is
+\[
+q_{ik\tau}
+=
+\frac{\exp(\bar v^C_{ik\tau})}
+{1+\sum_{\ell\in\J_\tau}\exp(\bar v^C_{i\ell\tau})},
+\qquad k\in\J_\tau,
+\]
+and the probability of no completion is
+\[
+q_{i0\tau}
+=
+\frac{1}{1+\sum_{\ell\in\J_\tau}\exp(\bar v^C_{i\ell\tau})}.
+\]
+The conditional probability of add-on vector $z$ given base product $k$ and true complexity $\tau$ is
+\[
+\chi_{iz\mid k\tau}
+=
+\frac{\exp\left(
+ h^C_{k\tau}(z;\eta)
+ -\beta_C\sum_{m\in\Mset}z_m p_{im}^A
+\right)}
+{\sum_{z'\in\Zset_{k\tau}}\exp\left(
+ h^C_{k\tau}(z';\eta)
+ -\beta_C\sum_{m\in\Mset}z'_m p_{im}^A
+\right)}.
+\]
+Thus the simultaneous bundle probability factorizes as
+\[
+Q_{ikz\tau}=q_{ik\tau}\chi_{iz\mid k\tau}.
+\]
+This is an exact factorization of the same multinomial logit over bundles. It is not a separate add-on stage.
+
+\subsection*{Additive add-on utility}
+
+A tractable specification is
+\[
+h^C_{k\tau}(z;\eta)=\sum_{m\in\Mset} z_m\eta_{mk\tau}.
+\]
+If all add-on vectors are feasible, then
+\[
+\Xi_{ik\tau}
+=
+\sum_{m\in\Mset}
+\log\left[1+\exp(\eta_{mk\tau}-\beta_C p_{im}^A)\right],
+\]
+and
+\[
+\chi_{iz\mid k\tau}
+=
+\prod_{m\in\Mset}
+\Lambda(\eta_{mk\tau}-\beta_C p_{im}^A)^{z_m}
+\left[1-\Lambda(\eta_{mk\tau}-\beta_C p_{im}^A)\right]^{1-z_m},
+\]
+where
+\[
+\Lambda(x)=\frac{\exp(x)}{1+\exp(x)}.
+\]
+Add-ons whose prices vary help identify the common completion price coefficient. Add-ons whose prices do not vary remain part of the bundle utility through their preference parameters and observed take-up.
+
+The completion inclusive value for true complexity $\tau$ is
+\[
+V^C_{i\tau}
+=
+\log\left[1+\sum_{k\in\J_\tau}\exp(\bar v^C_{ik\tau})\right].
+\]
+
+\section{Belief-based continuation values}
+
+At the start stage, customers act on beliefs rather than true complexity. Let
+\[
+\omega_{\tau b}=\Prb_i^{subj}(\tau_i=\tau\mid b_i=b),
+\qquad
+\sum_{\tau\in\Tset}\omega_{\tau b}=1.
+\]
+These are the subjective complexity weights associated with belief class $b$. The unknown belief class $U$ has its own weights $\omega_{\tau U}$.
+
+The perceived continuation value for belief class $b$ is
+\[
+\widetilde V^C_{ib}
+=
+\sum_{\tau\in\Tset}\omega_{\tau b}V^C_{i\tau}.
+\]
+
+\section{Start-stage utility}
+
+The deterministic utility from starting base product $j$ for belief class $b$ is
+\[
+v^S_{ijb}
+=
+\alpha^S_{s(j),b}
++
+\gamma^S_{r(j),b}
+-
+\beta_S p_{ij}^S
++
+\delta\widetilde V^C_{ib}.
+\]
+Here $\alpha^S_{s,b}$ is the service-type component, $\gamma^S_{r,b}$ is the tier component, $\beta_S$ is the common start price coefficient, and $\delta$ scales the perceived continuation value. The no-start utility is normalized to zero.
+
+The start probability for product $j$ is
+\[
+s_{ijb}
+=
+\frac{\exp(v^S_{ijb})}
+{1+\sum_{\ell\in\J}\exp(v^S_{i\ell b})},
+\qquad j\in\J,
+\]
+and the no-start probability is
+\[
+s_{i0b}
+=
+\frac{1}{1+\sum_{\ell\in\J}\exp(v^S_{i\ell b})}.
+\]
+
+\section{Observed data}
+
+For each customer $i$, the estimation data contain
+\[
+\mathcal{O}_i=\left(A_i,\; b_i\one\{A_i\neq0\},\; D_i,\; Z_i\one\{D_i\neq0\},\; \tau_i^{obs}\one\{D_i\neq0\},\; p_i^S,\; p_i^C,\; p_i^A\right).
+\]
+Belief is observed only for starters. True complexity is observed for completers when the completed-customer complexity column contains a valid complexity label.
+
+\section{Likelihood}
+
+The likelihood uses observed latent states when available and integrates over them otherwise.
+
+\subsection*{No start}
+
+If $A_i=0$, neither belief nor true complexity is observed:
+\[
+L_i(\Theta)
+=
+\sum_{b\in\Bset}\sum_{\tau\in\Tset}
+\pi_{\tau b}s_{i0b}.
+\]
+
+\subsection*{Start and no completion}
+
+If $A_i=j$, $b_i=b$, and $D_i=0$, belief is observed but true complexity is latent:
+\[
+L_i(\Theta)
+=
+\sum_{\tau\in\Tset}
+\pi_{\tau b}s_{ijb}q_{i0\tau}.
+\]
+
+\subsection*{Start and completion}
+
+If $A_i=j$, $b_i=b$, $D_i=k$, $Z_i=z$, and $\tau_i^{obs}=\tau$, both belief and true complexity are observed:
+\[
+L_i(\Theta)
+=
+\pi_{\tau b}s_{ijb}q_{ik\tau}\chi_{iz\mid k\tau}.
+\]
+Feasibility is imposed by $q_{ik\tau}=0$ whenever $k\notin\J_\tau$.
+
+\subsection*{Full likelihood}
+
+The observed-data log likelihood is
+\[
+\ell(\Theta)=\sum_i\log L_i(\Theta),
+\]
+where
+\[
+\begin{aligned}
+L_i(\Theta)
+=&\;
+\one\{A_i=0\}
+\sum_{b\in\Bset}\sum_{\tau\in\Tset}
+\pi_{\tau b}s_{i0b}
+\\
+&+
+\sum_{j\in\J}
+\one\{A_i=j,D_i=0\}
+\sum_{\tau\in\Tset}
+\pi_{\tau b_i}s_{ijb_i}q_{i0\tau}
+\\
+&+
+\sum_{j\in\J}\sum_{k\in\J}
+\one\{A_i=j,D_i=k\}
+\pi_{\tau_i^{obs}b_i}s_{ijb_i}q_{ik\tau_i^{obs}}\chi_{iZ_i\mid k\tau_i^{obs}}.
+\end{aligned}
+\]
+The maximum likelihood estimator is
+\[
+\widehat\Theta=\arg\max_\Theta \ell(\Theta).
+\]
+
+\section{Parameter vector}
+
+The parameter vector is
+\[
+\Theta=
+\left\{
+\pi_{\tau b},
+\omega_{\tau b},
+\alpha^S_{s,b},
+\gamma^S_{r,b},
+\alpha^C_{s,\tau},
+\gamma^C_{r,\tau},
+\eta,
+\beta_S,
+\beta_C,
+\delta
+\right\}.
+\]
+The price coefficients $\beta_S$ and $\beta_C$ are common across belief and complexity types. Start-stage mean utilities depend on the belief class. Completion-stage mean utilities depend on true complexity.
+
+The joint probabilities $\pi_{\tau b}$ recover the unconditional population distribution of true complexity and beliefs:
+\[
+\Prb(\tau_i=\tau)=\sum_{b\in\Bset}\pi_{\tau b},
+\qquad
+\Prb(b_i=b)=\sum_{\tau\in\Tset}\pi_{\tau b},
+\]
+and
+\[
+\Prb(\tau_i=\tau\mid b_i=b)=
+\frac{\pi_{\tau b}}{\sum_{\tau'\in\Tset}\pi_{\tau'b}}.
+\]
+
+
+\section{Identification}
+
+The structural probabilities $\pi_{\tau b}$ are unconditional population probabilities. They are not probabilities among starters, among completers, or among customers whose complexity is observed. This follows directly from how the likelihood is factored.
+
+For non-starters, the model contributes
+\[
+L_i(\Theta)=\sum_{b\in\Bset}\sum_{\tau\in\Tset}\pi_{\tau b}s_{i0b}.
+\]
+For starters who do not complete, the model contributes
+\[
+L_i(\Theta)=\sum_{\tau\in\Tset}\pi_{\tau b_i}s_{ijb_i}q_{i0\tau}.
+\]
+For completers, the model contributes
+\[
+L_i(\Theta)=\pi_{\tau_i^{obs}b_i}s_{ijb_i}q_{ik\tau_i^{obs}}\chi_{iZ_i\mid k\tau_i^{obs}}.
+\]
+The same mixing weights $\pi_{\tau b}$ appear before the customer's selection into starting and completion. The start and completion probabilities then describe how customers with each latent state sort through the funnel.
+
+This is why the model recovers unconditional joint probabilities. The observed data are selected: beliefs are observed only for starters, and true complexity is observed only for completers. The likelihood corrects for that selection by jointly estimating the latent-state distribution and the choice probabilities that generate selection into each observed state. Experimental price variation shifts the start, completion, and add-on choice probabilities while leaving the underlying population shares fixed. The parametric structure then separates population composition from selection behavior.
+
+Observed SLR belief signals anchor belief labels among starters. Observed true complexity among completers anchors complexity labels among completers. Feasibility restrictions link true complexity to the set of completion products customers can choose. Price variation and the structural choice model then recover the population distribution of beliefs and true complexity represented in the estimation sample, along with the utility and price-response parameters needed for counterfactual simulation.
+
+\section{Counterfactual product lineup}
+
+
+Let
+\[
+\G^h
+\]
+denote the product set in counterfactual scenario $h$. In each scenario, true complexity and beliefs continue to exist, but the product menu changes. The scenario may remove explicit tiers, merge current products, change prices, and convert some add-ons into base entitlements.
+
+A scenario product $g\in\G^h$ has a service label $s^h(g)$ and a set of included add-ons
+\[
+E_g^h\subseteq\Mset.
+\]
+Included add-ons are entitlements and are not chosen separately. The remaining optional add-ons are
+\[
+\Mset_g^{opt,h}\subseteq\Mset\setminus E_g^h.
+\]
+
+Let $z^{opt}$ denote choices over optional add-ons only. The total scenario bundle price is
+\[
+P_i^{C,h}(g,z^{opt})
+=
+p_{ig}^{C,h}+
+\sum_{m\in\Mset_g^{opt,h}}z_m^{opt}p_{im}^{A,h}.
+\]
+The utility contribution from included add-ons is part of the base utility of $g$:
+\[
+H_{g\tau}^{inc,h}=\sum_{m\in E_g^h}\eta_{mg\tau}^{h}.
+\]
+The optional add-on inclusive value is
+\[
+\Xi_{ig\tau}^{h}
+=
+\log\left[
+\sum_{z^{opt}\in\Zset_{g\tau}^{h}}
+\exp\left(
+ h_{g\tau}^{C,h}(z^{opt};\eta)
+ -\beta_C\sum_{m\in\Mset_g^{opt,h}}z_m^{opt}p_{im}^{A,h}
+\right)
+\right].
+\]
+The scenario completion utility inclusive of optional add-ons is
+\[
+\bar v_{ig\tau}^{C,h}
+=
+\alpha_{s^h(g),\tau}^{C,h}
++H_{g\tau}^{inc,h}
+-\beta_C p_{ig}^{C,h}
++\Xi_{ig\tau}^{h}.
+\]
+If explicit tiers disappear, the tier term is omitted. If the scenario retains an implicit complexity level or eligibility rule, it is encoded through the feasible set
+\[
+\G_\tau^h\subseteq\G^h.
+\]
+
+The scenario completion probabilities are
+\[
+q_{ig\tau}^{h}
+=
+\frac{\exp(\bar v_{ig\tau}^{C,h})}
+{1+\sum_{u\in\G_\tau^h}\exp(\bar v_{iu\tau}^{C,h})},
+\qquad g\in\G_\tau^h,
+\]
+and
+\[
+q_{i0\tau}^{h}
+=
+\frac{1}{1+\sum_{u\in\G_\tau^h}\exp(\bar v_{iu\tau}^{C,h})}.
+\]
+The scenario completion inclusive value is
+\[
+V_{i\tau}^{C,h}=\log\left[1+\sum_{g\in\G_\tau^h}\exp(\bar v_{ig\tau}^{C,h})\right],
+\]
+and the belief-based scenario continuation value is
+\[
+\widetilde V_{ib}^{C,h}=\sum_{\tau\in\Tset}\omega_{\tau b}V_{i\tau}^{C,h}.
+\]
+
+Let $v_{igb}^{S,h}$ be the start utility under scenario $h$, constructed analogously to the estimated start utility but using the scenario menu and prices. Then
+\[
+s_{igb}^{h}
+=
+\frac{\exp(v_{igb}^{S,h})}
+{1+\sum_{u\in\G^h}\exp(v_{iub}^{S,h})},
+\qquad
+s_{i0b}^{h}
+=
+\frac{1}{1+\sum_{u\in\G^h}\exp(v_{iub}^{S,h})}.
+\]
+
+\subsection*{Scenario shares}
+
+Aggregating over the estimated distribution of beliefs and true complexity gives predicted scenario shares. The no-start share is
+\[
+Share^{h}(\text{no start})
+=
+\frac{1}{N}\sum_i\sum_b\sum_\tau \widehat\pi_{\tau b}s_{i0b}^{h}.
+\]
+The drop share, meaning start but no completion, is
+\[
+Share^{h}(\text{drop})
+=
+\frac{1}{N}\sum_i\sum_b\sum_\tau
+\widehat\pi_{\tau b}
+\left(\sum_{g\in\G^h}s_{igb}^{h}\right)
+q_{i0\tau}^{h}.
+\]
+The total share completing scenario product $g$ is
+\[
+Share^{h}(g)
+=
+\frac{1}{N}\sum_i\sum_b\sum_\tau
+\widehat\pi_{\tau b}
+\left(\sum_{a\in\G^h}s_{iab}^{h}\right)
+q_{ig\tau}^{h}.
+\]
+This share already sums over all optional add-on vectors for product $g$ because $q_{ig\tau}^{h}$ includes the optional add-on inclusive value.
+
+\subsection*{Migration matrix}
+
+The primary reporting object is a migration matrix. Rows are current-lineup outcomes and columns are outcomes under scenario $h$.
+
+Define the current outcome categories
+\[
+\Yset^{cur}=\{\text{no start},\text{drop}\}\cup\J^{agg},
+\]
+where $\J^{agg}$ indexes current completion service-tier outcomes aggregated across add-on vectors. Define the scenario outcome categories
+\[
+\Yset^{h}=\{\text{no start},\text{drop}\}\cup\G^h.
+\]
+
+Let $\widehat w_{i\tau b}$ denote the posterior probability that customer $i$ has true complexity $\tau$ and belief $b$ given their observed current-lineup behavior. These posterior weights are computed from the same likelihood terms used in estimation.
+
+For a scenario outcome $y\in\Yset^h$, define
+\[
+P_i^h(y\mid \tau,b)
+\]
+as follows:
+\[
+P_i^h(\text{no start}\mid \tau,b)=s_{i0b}^h,
+\]
+\[
+P_i^h(\text{drop}\mid \tau,b)=
+\left(\sum_{g\in\G^h}s_{igb}^h\right)q_{i0\tau}^h,
+\]
+and
+\[
+P_i^h(g\mid \tau,b)=
+\left(\sum_{a\in\G^h}s_{iab}^h\right)q_{ig\tau}^h.
+\]
+The row-normalized migration matrix is
+\[
+M^h(o,y)
+=
+\frac{
+\sum_i \one\{Y_i^{cur}=o\}
+\sum_{\tau,b}\widehat w_{i\tau b}P_i^h(y\mid \tau,b)
+}{
+\sum_i \one\{Y_i^{cur}=o\}
+},
+\qquad
+o\in\Yset^{cur},\quad y\in\Yset^h.
+\]
+Each row describes where customers who are in current outcome $o$ are predicted to sort under scenario $h$. Completion columns are scenario products, aggregated across all optional add-on vectors.
+
+
+\newpage
+\section{Implementation pseudocode}
+
+The pseudocode below is organized so that an implementation agent can translate the model into estimation and simulation code. Each box is intentionally short enough to be implemented independently.
+
+\subsection*{A. Product, price, and choice data}
+
+\begin{Verbatim}[fontsize=\small, frame=single]
+Required tables
+
+1. Customer-level table
+   customer_id
+   start_choice A_i
+      A_i = 0 for no start
+      A_i = j for chosen current start product j
+   completion_choice D_i
+      D_i = 0 for start but no completion
+      D_i = k for chosen current completion product k
+   SLR_complexity_response
+      observed only if A_i != 0
+   complexity_col
+      observed only if D_i != 0
+   add_on_choices Z_i
+      observed only if D_i != 0
+
+2. Current product table
+   product_id j
+   service label s(j)
+   tier label r(j)
+   start availability
+   completion availability
+
+3. Price tables
+   pS[i,j] = start price for customer i and product j
+   pC[i,k] = completion base price for customer i and product k
+   pA[i,m] = add-on price for customer i and add-on m
+
+Add-on prices may vary like base product prices, but need not vary.
+Fixed add-on prices remain in the total bundle price.
+\end{Verbatim}
+
+\newpage
+\subsection*{B. State construction and estimation sample}
+
+\begin{Verbatim}[fontsize=\small, frame=single]
+Construct state labels
+
+1. Define true complexity support:
+     T = {1, ..., R}
+
+2. Define belief support:
+     B = T union {Unknown}
+
+3. For starters, map the SLR response to observed belief:
+     if A_i != 0:
+        b_i = map_slr_response_to_belief(SLR_complexity_response_i)
+     else:
+        b_i = missing
+
+4. For completers, map the completed-customer complexity column:
+     if D_i != 0:
+        tau_obs_i = map_complexity_col_to_tau(complexity_col_i)
+     else:
+        tau_obs_i = missing
+
+5. Drop completers whose complexity column is unknown:
+     completer_count = count(D_i != 0)
+     unknown_count = count(D_i != 0 and complexity_col is unknown)
+     dropped_share = unknown_count / completer_count
+     report dropped_share as an implementation diagnostic
+
+6. Build feasible completion sets:
+     J_tau[tau] = {k in J such that tier r(k) >= tau}
+
+7. Build feasible add-on sets:
+     Z_set[k,tau] = feasible add-on vectors for k and tau
+
+   Baseline:
+     Z_set[k,tau] = all binary vectors over add-ons
+\end{Verbatim}
+
+\newpage
+\subsection*{C. Likelihood building blocks}
+
+\begin{Verbatim}[fontsize=\small, frame=single]
+For a trial parameter vector theta
+
+For each customer i and true complexity tau:
+
+  For each feasible completion product k in J_tau[tau]:
+
+    Compute add-on inclusive value:
+      Xi[i,k,tau] =
+        log sum over z in Z_set[k,tau] of
+          exp(addon_utility(k,tau,z,eta)
+              - betaC * sum_m z[m] * pA[i,m])
+
+    Compute base completion utility:
+      vbarC[i,k,tau] =
+          alphaC[service(k),tau]
+        + gammaC[tier(k),tau]
+        - betaC * pC[i,k]
+        + Xi[i,k,tau]
+
+  completion_den =
+      1 + sum_k in J_tau[tau] exp(vbarC[i,k,tau])
+
+  q0[i,tau] = 1 / completion_den
+  q[i,k,tau] = exp(vbarC[i,k,tau]) / completion_den
+  VC[i,tau] = log(completion_den)
+\end{Verbatim}
+
+\subsection*{D. Start probabilities}
+
+\begin{Verbatim}[fontsize=\small, frame=single]
+For each customer i and belief b:
+
+  Perceived continuation value:
+    Vtilde[i,b] =
+      sum_tau omega[tau,b] * VC[i,tau]
+
+  For each current start product j:
+    vS[i,j,b] =
+        alphaS[service(j),b]
+      + gammaS[tier(j),b]
+      - betaS * pS[i,j]
+      + delta * Vtilde[i,b]
+
+  start_den =
+      1 + sum_j in J exp(vS[i,j,b])
+
+  s0[i,b] = 1 / start_den
+  s[i,j,b] = exp(vS[i,j,b]) / start_den
+\end{Verbatim}
+
+\subsection*{E. Observation likelihood}
+
+\begin{Verbatim}[fontsize=\small, frame=single]
+For each customer i:
+
+  Case 1: no start
+    if A_i == 0:
+      L_i = sum_b sum_tau pi[tau,b] * s0[i,b]
+
+  Case 2: start and no completion
+    if A_i == j and D_i == 0:
+      b = observed belief b_i
+      L_i = sum_tau pi[tau,b] * s[i,j,b] * q0[i,tau]
+
+  Case 3: start and completion
+    if A_i == j and D_i == k:
+      b = observed belief b_i
+      tau = observed complexity tau_obs_i
+      z = observed add-on vector Z_i
+
+      chi = conditional_addon_probability(i,k,tau,z,theta)
+
+      L_i = pi[tau,b] * s[i,j,b] * q[i,k,tau] * chi
+
+Objective:
+  log_likelihood(theta) = sum_i log(L_i)
+\end{Verbatim}
+
+\newpage
+\subsection*{F. Estimation and checks}
+
+\begin{Verbatim}[fontsize=\small, frame=single]
+Estimate theta
+
+1. Initialize theta.
+2. Use constrained transforms:
+     pi = softmax(raw_pi)
+     omega[:,b] = softmax(raw_omega[:,b])
+     betaS = exp(raw_betaS) if enforcing positive price sensitivity
+     betaC = exp(raw_betaC) if enforcing positive price sensitivity
+3. Apply logit location normalizations:
+     omit one service utility or tier utility where needed
+4. Maximize log_likelihood(theta).
+5. Run multiple starting values.
+6. Save theta_hat.
+
+Report model outputs:
+  pi_hat[tau,b]
+  marginal true complexity shares sum_b pi_hat[tau,b]
+  marginal belief shares sum_tau pi_hat[tau,b]
+  conditional complexity by belief
+  betaS_hat and betaC_hat
+  service, tier, and add-on preference estimates
+
+Report fit diagnostics:
+  observed vs predicted start rate
+  observed vs predicted drop rate
+  observed vs predicted completion by service-tier
+  observed vs predicted add-on take-up
+  diagnostics by observed SLR belief group
+  diagnostics by observed true complexity among completers
+\end{Verbatim}
+
+\newpage
+\subsection*{G. Posterior latent-state weights}
+
+\begin{Verbatim}[fontsize=\small, frame=single]
+Compute posterior weights w_hat[i,tau,b]
+
+If A_i == 0:
+  denom = sum_b sum_tau pi_hat[tau,b] * s0_hat[i,b]
+  w_hat[i,tau,b] = pi_hat[tau,b] * s0_hat[i,b] / denom
+
+If A_i == j and D_i == 0:
+  b = observed belief b_i
+  denom =
+    sum_tau pi_hat[tau,b] * s_hat[i,j,b] * q0_hat[i,tau]
+  w_hat[i,tau,b] =
+    pi_hat[tau,b] * s_hat[i,j,b] * q0_hat[i,tau] / denom
+  set weights for other beliefs to zero
+
+If A_i == j and D_i == k:
+  b = observed belief b_i
+  tau = observed true complexity tau_obs_i
+  w_hat[i,tau,b] = 1
+  set all other latent states to zero
+\end{Verbatim}
+
+\newpage
+\subsection*{H. Scenario simulation}
+
+\begin{Verbatim}[fontsize=\small, frame=single]
+For each scenario h, construct:
+
+  Scenario product set G_h
+  Scenario product labels g
+  Scenario service label s_h(g)
+  Scenario start price pS_h[i,g]
+  Scenario completion price pC_h[i,g]
+  Included add-ons E_h[g]
+  Optional add-ons M_opt_h[g]
+  Optional add-on prices pA_h[i,m]
+  Feasible products by true complexity G_h_tau[tau]
+
+For each customer i and true complexity tau:
+
+  For each feasible scenario product g in G_h_tau[tau]:
+
+    included_addon_value = value of add-ons rolled into product g
+
+    optional_addon_IV =
+      log sum over optional add-on vectors z_opt of
+        exp(optional_addon_utility(g,tau,z_opt,eta_hat)
+            - betaC_hat * optional_addon_price)
+
+    vbarC_h[i,g,tau] =
+        scenario_service_value(g,tau)
+      + included_addon_value
+      - betaC_hat * pC_h[i,g]
+      + optional_addon_IV
+
+  completion_den_h =
+    1 + sum_g in G_h_tau[tau] exp(vbarC_h[i,g,tau])
+
+  q0_h[i,tau] = 1 / completion_den_h
+  q_h[i,g,tau] = exp(vbarC_h[i,g,tau]) / completion_den_h
+  VC_h[i,tau] = log(completion_den_h)
+\end{Verbatim}
+
+\newpage
+\subsection*{I. Scenario start probabilities and shares}
+
+\begin{Verbatim}[fontsize=\small, frame=single]
+For each customer i and belief b:
+
+  Vtilde_h[i,b] = sum_tau omega_hat[tau,b] * VC_h[i,tau]
+
+  For each scenario product g:
+    vS_h[i,g,b] =
+        scenario_start_service_value(g,b)
+      - betaS_hat * pS_h[i,g]
+      + delta_hat * Vtilde_h[i,b]
+
+    If the scenario keeps tier-like product attributes,
+    include the mapped tier value. If tiers disappear, omit it.
+
+  start_den_h = 1 + sum_g in G_h exp(vS_h[i,g,b])
+  s0_h[i,b] = 1 / start_den_h
+  s_h[i,g,b] = exp(vS_h[i,g,b]) / start_den_h
+
+Scenario outcome probabilities:
+  P_h[NoStart | i,tau,b] = s0_h[i,b]
+
+  P_h[Drop | i,tau,b] =
+    (sum_g s_h[i,g,b]) * q0_h[i,tau]
+
+  P_h[Complete g | i,tau,b] =
+    (sum_a s_h[i,a,b]) * q_h[i,g,tau]
+\end{Verbatim}
+
+\newpage
+\subsection*{J. Scenario shares and migration matrix}
+
+\begin{Verbatim}[fontsize=\small, frame=single]
+Aggregate scenario shares:
+
+  Share_h[NoStart] =
+    mean_i sum_b sum_tau pi_hat[tau,b] *
+      P_h[NoStart | i,tau,b]
+
+  Share_h[Drop] =
+    mean_i sum_b sum_tau pi_hat[tau,b] *
+      P_h[Drop | i,tau,b]
+
+  For each scenario product g:
+    Share_h[g] =
+      mean_i sum_b sum_tau pi_hat[tau,b] *
+        P_h[Complete g | i,tau,b]
+
+Accounting check:
+  Share_h[NoStart] + Share_h[Drop] + sum_g Share_h[g] = 1
+
+Build current outcome Y_cur[i]:
+  if A_i == 0:
+     Y_cur[i] = NoStart
+  else if D_i == 0:
+     Y_cur[i] = Drop
+  else:
+     Y_cur[i] = aggregate_current_completion_category(D_i)
+     Example: current service-tier, aggregated over add-ons
+
+For each current outcome o and scenario outcome y:
+  numerator =
+    sum_i 1{Y_cur[i] == o}
+      * sum_tau sum_b w_hat[i,tau,b] * P_h[y | i,tau,b]
+
+  denominator = count_i(Y_cur[i] == o)
+
+  M_h[o,y] = numerator / denominator
+
+Rows are current outcomes.
+Columns are scenario outcomes: NoStart, Drop, and scenario products.
+Completion columns aggregate across optional add-on vectors.
+\end{Verbatim}
+
+\newpage
+\appendix
+
+
+\section{Appendix: General Observed and Unobserved Heterogeneity}
+
+This appendix extends the model to settings in which customers differ along additional dimensions beyond beliefs and true complexity. The goal is to formalize a flexible way to handle cases where some customer attributes are observed for everyone, some are observed only for certain subgroups, some are observed only after start or completion, and some remain latent for all customers. The same likelihood logic applies: the model conditions on what is observed and integrates over the finite set of states that remain unobserved.
+
+This is useful for subgroup reporting. For example, we may want a migration matrix for returning customers whose prior-year income exceeded \$75,000 and whose current-year income is below \$50,000. Prior-year income may be observed for returning customers before the shopping process, while current-year income may be observed only after completion or may be latent for non-completers. The framework below lets the model recover those subgroup shares and migration matrices using the same finite-mixture structure.
+
+\subsection{Always-observed segments and partially observed covariates}
+
+Let
+\[
+\sigma_i\in\Sigma
+\]
+denote an always-observed segment. Examples include new versus returning customer, acquisition channel, cohort, or any segmentation variable available for all customers before the choice process.
+
+Let
+\[
+X_i^*=(X_{i1}^*,\ldots,X_{iP}^*)
+\]
+denote the full set of customer attributes that could be useful for heterogeneity. These may include prior-year income, current-year income, age group, filing history, state, household type, or other discrete characteristics. Not every component of $X_i^*$ is observed for every customer. Let
+\[
+M_i^X=(M_{i1}^X,\ldots,M_{iP}^X)\in\{0,1\}^P
+\]
+be the availability mask, where $M_{ip}^X=1$ means attribute $p$ is observed for customer $i$ at the time the model is conditioned on it.
+
+The observed covariate record is
+\[
+x_i^{obs}=\left(\sigma_i, M_i^X, \{X_{ip}^*:M_{ip}^X=1\}\right).
+\]
+For a returning customer, this record may include many observed fields, such as prior-year income and prior-year product history. For a new customer, the same fields may be missing, in which case the observed record may contain only the always-observed segment and the missingness pattern. Thus the model does not require the same covariate vector to be available for every subgroup.
+
+\subsection{Additional finite latent heterogeneity}
+
+Let
+\[
+\nu_i\in\mathcal V\subseteq\{0,1\}^D
+\]
+denote a finite-dimensional vector of additional latent heterogeneity. The support $\mathcal V$ contains the allowed binary combinations of latent traits. Components of $\nu_i$ can encode attributes such as current-year income group, age group, customer sophistication, attachment propensity, or other discrete traits that may not be observed for all customers.
+
+The complete latent state is
+\[
+\ell_i=(\tau_i,b_i,\nu_i),
+\]
+where $\tau_i$ is true complexity, $b_i$ is belief class, and $\nu_i$ is the additional latent vector. Conditional on the observed record $x_i^{obs}$, the latent-state distribution is
+\[
+\pi_{\tau b\nu\mid x^{obs}}
+=
+\Prb(\tau_i=\tau,b_i=b,\nu_i=\nu\mid x_i^{obs}=x^{obs}),
+\]
+with
+\[
+\sum_{\tau\in\Tset}\sum_{b\in\Bset}\sum_{\nu\in\mathcal V}
+\pi_{\tau b\nu\mid x^{obs}}=1
+\qquad \text{for each observed record }x^{obs}.
+\]
+
+This notation nests several cases. If a field is always observed for a subgroup, it can be part of $x_i^{obs}$ and the model conditions on it. If a field is sometimes observed and sometimes not, it can be represented in $\nu_i$ and restricted whenever the field is observed. If a field is never observed before choice but affects behavior, it can remain fully latent in $\nu_i$.
+
+\subsection{Consistency sets}
+
+For each customer, define the set of latent states consistent with observed information:
+\[
+\mathcal C_i\subseteq \Tset\times\Bset\times\mathcal V.
+\]
+The set $\mathcal C_i$ imposes all observed restrictions:
+\begin{itemize}
+\item if the SLR belief signal is observed, require $b=b_i$;
+\item if completed-customer complexity is observed, require $\tau=\tau_i^{obs}$;
+\item if components of the latent vector $\nu_i$ are observed, require $\nu$ to match those observed components;
+\item if an attribute is observed before choice for the relevant segment, condition on it through $x_i^{obs}$ rather than integrating over it.
+\end{itemize}
+
+For example, suppose returning customers have prior-year income observed before shopping, while current-year income is observed only for completers. Then prior-year income belongs in $x_i^{obs}$ for returners. Current-year income can be a component of $\nu_i$ and is imposed in $\mathcal C_i$ only when observed. For new customers, both prior-year income and current-year income may be missing, so the model integrates over the feasible values of those components.
+
+\subsection{Generalized likelihood}
+
+Let $O_i$ denote the observed start, completion, add-on, and measurement outcomes used in the likelihood. The generalized likelihood contribution is
+\[
+L_i(\Theta)
+=
+\sum_{(\tau,b,\nu)\in\mathcal C_i}
+\pi_{\tau b\nu\mid x_i^{obs}}
+P_i(O_i\mid \tau,b,\nu,x_i^{obs};\Theta).
+\]
+
+The conditional choice probability $P_i(\cdot)$ has the same structure as in the main model, now allowing utilities and price sensitivities to depend on observed and latent heterogeneity if desired. For example,
+\[
+P_i(O_i\mid \tau,b,\nu,x_i^{obs};\Theta)=s_{i0b\nu x}
+\]
+for a non-starter,
+\[
+P_i(O_i\mid \tau,b,\nu,x_i^{obs};\Theta)
+=s_{ijb\nu x}q_{i0\tau\nu x}
+\]
+for a starter who drops, and
+\[
+P_i(O_i\mid \tau,b,\nu,x_i^{obs};\Theta)
+=s_{ijb\nu x}q_{ik\tau\nu x}\chi_{iz\mid k\tau\nu x}
+\]
+for a completer who chooses base product $k$ and add-on vector $z$.
+
+The important point is that the model never needs a single universal covariate vector observed for everyone. It uses $x_i^{obs}$ for what is known and sums over $\mathcal C_i$ for what is not known.
+
+\subsection{Recovery of subgroup population shares}
+
+Because the mixing distribution is defined before selection into starting and completion, the model recovers population shares for subgroups that combine observed and latent characteristics. For any subgroup rule $G(\tau,b,\nu,x^{obs})=c$, the estimated share within an observed segment $x^{obs}$ is
+\[
+\widehat{Share}(c\mid x^{obs})
+=
+\sum_{\tau,b,\nu:\,G(\tau,b,\nu,x^{obs})=c}
+\widehat\pi_{\tau b\nu\mid x^{obs}}.
+\]
+
+For example, among returning customers with prior-year income above \$75,000, the estimated share with current-year income below \$50,000 is obtained by summing $\widehat\pi_{\tau b\nu\mid x^{obs}}$ over latent states $\nu$ whose current-income component is below \$50,000, conditioning on the observed returning-customer record and prior-year income group.
+
+The posterior probability of latent state $(\tau,b,\nu)$ for customer $i$ is
+\[
+\widehat w_{i\tau b\nu}
+=
+\frac{
+\widehat\pi_{\tau b\nu\mid x_i^{obs}}
+P_i(O_i\mid \tau,b,\nu,x_i^{obs};\widehat\Theta)
+}{
+\sum_{(\tau',b',\nu')\in\mathcal C_i}
+\widehat\pi_{\tau'b'\nu'\mid x_i^{obs}}
+P_i(O_i\mid \tau',b',\nu',x_i^{obs};\widehat\Theta)
+},
+\]
+with the numerator equal to zero for states outside $\mathcal C_i$.
+
+\subsection{Migration matrices by observed and latent subgroup}
+
+Let $P_i^h(y\mid \tau,b,\nu,x_i^{obs})$ be the probability that customer $i$ sorts into scenario outcome $y$ under scenario $h$, conditional on latent state $(\tau,b,\nu)$ and observed record $x_i^{obs}$.
+
+For an observed record or segment $x^{obs}$, the scenario share of outcome $y$ is
+\[
+Share_{x^{obs}}^h(y)
+=
+\frac{1}{N_{x^{obs}}}
+\sum_{i:x_i^{obs}=x^{obs}}
+\sum_{\tau,b,\nu}
+\widehat\pi_{\tau b\nu\mid x^{obs}}
+P_i^h(y\mid \tau,b,\nu,x^{obs}).
+\]
+
+For a latent subgroup defined by $G(\tau,b,\nu,x^{obs})=c$, the subgroup scenario share is
+\[
+Share_{x^{obs},c}^h(y)
+=
+\frac{
+\sum_{i:x_i^{obs}=x^{obs}}
+\sum_{\tau,b,\nu:\,G(\tau,b,\nu,x^{obs})=c}
+\widehat\pi_{\tau b\nu\mid x^{obs}}
+P_i^h(y\mid \tau,b,\nu,x^{obs})
+}{
+\sum_{i:x_i^{obs}=x^{obs}}
+\sum_{\tau,b,\nu:\,G(\tau,b,\nu,x^{obs})=c}
+\widehat\pi_{\tau b\nu\mid x^{obs}}
+}.
+\]
+
+The row-normalized migration matrix for current outcome $o$ and scenario outcome $y$ is
+\[
+M_{x^{obs},c}^h(o,y)
+=
+\frac{
+\sum_{i:x_i^{obs}=x^{obs}}
+\one\{Y_i^{cur}=o\}
+\sum_{\tau,b,\nu:\,G(\tau,b,\nu,x^{obs})=c}
+\widehat w_{i\tau b\nu}
+P_i^h(y\mid \tau,b,\nu,x_i^{obs})
+}{
+\sum_{i:x_i^{obs}=x^{obs}}
+\one\{Y_i^{cur}=o\}
+\sum_{\tau,b,\nu:\,G(\tau,b,\nu,x^{obs})=c}
+\widehat w_{i\tau b\nu}
+}.
+\]
+Rows are current outcomes and columns are scenario outcomes. This formula supports migration matrices for observed subgroups, latent subgroups, and interactions of the two.
+
+\newpage
+\subsection{Implementation extension}
+
+\begin{Verbatim}[fontsize=\small, frame=single]
+To extend implementation to general heterogeneity:
+
+1. Define always-observed segment sigma_i.
+   Examples: new vs returning, channel, cohort.
+
+2. Define the full possible covariate set X_star.
+   Examples: prior-year income, current-year income, age group,
+   product history, household indicators.
+
+3. For each customer, build x_obs_i:
+   x_obs_i = segment sigma_i
+             + missingness mask M_X_i
+             + all observed covariate values
+
+4. Define latent vector support V.
+   Example:
+     nu = (current_income_low, age_young, sophistication_high)
+
+5. Define consistency set C_i.
+   Include only states consistent with:
+     observed SLR belief
+     observed completed-customer complexity
+     observed components of nu
+     observed x_obs_i
+
+6. Replace pi[tau,b] with pi[tau,b,nu | x_obs].
+
+7. Allow utilities to depend on x_obs and nu if desired.
+
+8. Replace each likelihood contribution with:
+     L_i = sum over (tau,b,nu) in C_i of
+             pi[tau,b,nu | x_obs_i]
+             * choice_probability(O_i | tau,b,nu,x_obs_i)
+
+9. After estimation, compute posterior weights:
+     w_hat[i,tau,b,nu]
+
+10. For subgroup reporting:
+      use pi_hat for population subgroup shares;
+      use w_hat for migration matrices conditional on
+      observed current-lineup outcomes.
+
+11. Example:
+      Segment = returning customers
+      Observed condition = prior-year income > 75k
+      Latent condition = current-year income < 50k
+      Compute Share_{x_obs,c}^h and M_{x_obs,c}^h.
+\end{Verbatim}
+
+\end{document}
