@@ -1,0 +1,850 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Counterfactual Product Lineup Model Dashboard Brief</title>
+<!--
+DASHBOARD IMPLEMENTATION NOTES FOR FUTURE AI / ENGINEER
+
+Audience:
+- Finance leader, director, and semi-technical stakeholders.
+- This is a dashboard / screen-share brief, not the economist-facing technical note.
+
+Design requirements:
+- Keep each page visually clean and sparse.
+- Do not turn this into a wall of text or a grid of text boxes.
+- Preserve the high-level story:
+  1. Business question: if we change the lineup, where do customers go?
+  2. Model story: beliefs and true complexity drive sorting.
+  3. Counterfactual engine: estimate primitives, swap menu, recompute outcomes.
+  4. Results: overall, new customers, returning customers.
+  5. AI sensitivity appendix.
+
+Interactive dashboard behavior:
+- On each results page, the only bottom call-to-action should be "AI sensitivity appendix".
+- In an interactive dashboard, clicking that button should route to the AI sensitivity appendix view.
+- The appendix view should have tab controls for assumed WTP for AI support:
+    tab 1: WTP = -$25
+    tab 2: WTP = $0
+    tab 3: WTP = +$25
+- Each tab should show the same migration-matrix structure and KPI cards, filtered to that AI WTP sensitivity case.
+- In the PDF this is static, so the appendix shows the tabbed layout as a mockup.
+
+Language requirements:
+- Stakeholder friendly.
+- Avoid dense math. Only include the simple likelihood idea on page 2.
+- The likelihood explanation must clearly say that hidden state means belief, true complexity, and other heterogeneity.
+- The key point: removing complexity tiers from products does not remove customer complexity.
+-->
+<style>
+  @page {
+    size: 13.333in 7.5in;
+    margin: 0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #202B36;
+    background: white;
+  }
+  .slide {
+    width: 13.333in;
+    height: 7.5in;
+    padding: 0.46in 0.55in 0.38in 0.55in;
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+    background: white;
+  }
+  .slide::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 0.60in;
+    background: #F7F9FC;
+    border-bottom: 1px solid #D8E1EA;
+    z-index: 0;
+  }
+  .header {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    height: 0.35in;
+    margin-bottom: 0.28in;
+  }
+  .header h1 {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1;
+    color: #12324A;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+  .header .sub {
+    font-size: 12px;
+    color: #667085;
+  }
+  .page-num {
+    position: absolute;
+    bottom: 0.18in;
+    right: 0.55in;
+    font-size: 11px;
+    color: #98A2B3;
+  }
+  h2 {
+    margin: 0 0 10px 0;
+    font-size: 26px;
+    color: #12324A;
+    letter-spacing: -0.02em;
+  }
+  h3 {
+    margin: 0;
+    font-size: 17px;
+    color: #12324A;
+  }
+  p { margin: 0; }
+  .small { font-size: 13px; color: #475467; line-height: 1.35; }
+  .medium { font-size: 16px; line-height: 1.35; }
+  .tiny { font-size: 11px; color: #667085; line-height: 1.25; }
+  .muted { color: #667085; }
+  .blue { color: #2F6F9F; }
+  .green { color: #4F9D69; }
+  .orange { color: #E76F51; }
+  .purple { color: #6B5DD3; }
+  .gold { color: #C58B15; }
+  .hero {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 0.52in;
+    height: 5.95in;
+  }
+  .hero-title {
+    font-size: 43px;
+    line-height: 1.06;
+    color: #12324A;
+    letter-spacing: -0.035em;
+    font-weight: 800;
+    margin: 0.26in 0 0.16in 0;
+  }
+  .eyebrow {
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: #2F6F9F;
+    font-weight: 800;
+  }
+
+  .title-summary {
+    margin-top: 0.22in;
+    display: grid;
+    gap: 10px;
+    max-width: 5.7in;
+  }
+  .summary-row {
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    gap: 11px;
+    align-items: start;
+    font-size: 15.2px;
+    line-height: 1.28;
+    color: #202B36;
+  }
+  .summary-num {
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    background: #2F6F9F;
+    color: white;
+    font-weight: 800;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: -2px;
+  }
+
+  .outcome-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 0.35in;
+  }
+  .pill {
+    border-radius: 999px;
+    padding: 9px 14px;
+    font-weight: 800;
+    font-size: 14px;
+    display: inline-block;
+    white-space: nowrap;
+  }
+  .pill.orange { background:#FCEBE6; color:#E76F51; }
+  .pill.gold { background:#FFF3D7; color:#C58B15; }
+  .pill.green { background:#EAF6EE; color:#4F9D69; }
+  .pill.blue { background:#F0F7FC; color:#2F6F9F; }
+  .pill.purple { background:#EFEDFF; color:#6B5DD3; }
+  .takeaway {
+    margin-top: 0.55in;
+    border-radius: 22px;
+    background: #F0F7FC;
+    padding: 0.22in 0.26in;
+    border: 1px solid #D8E1EA;
+  }
+  .takeaway .label {
+    color:#2F6F9F;
+    font-size:14px;
+    font-weight:800;
+    margin-bottom: 6px;
+  }
+  .flow-panel {
+    background: #F7F9FC;
+    border-radius: 24px;
+    padding: 0.28in;
+    margin-top: 0.2in;
+  }
+  .flow-step {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    align-items: center;
+    gap: 12px;
+    border-radius: 16px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    background: white;
+    border: 1px solid #D8E1EA;
+  }
+  .flow-step:last-child { margin-bottom: 0; }
+  .num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    color: white;
+    background: #2F6F9F;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:800;
+    font-size:13px;
+  }
+  .flow-step.gold .num { background:#F2B84B; }
+  .flow-step.green .num { background:#4F9D69; }
+  .flow-step.orange .num { background:#E76F51; }
+  .flow-title { font-weight:800; color:#12324A; font-size:16px; margin-bottom:2px; }
+  .flow-text { color:#475467; font-size:12.5px; line-height:1.25; }
+  .section-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.22in;
+    margin-top: 0.25in;
+  }
+  .node {
+    min-height: 1.12in;
+    border-radius: 18px;
+    padding: 0.16in 0.14in;
+    border: 1px solid #D8E1EA;
+    position: relative;
+  }
+  .node::before {
+    content:"";
+    position:absolute;
+    top:0;
+    left:0;
+    right:0;
+    height:8px;
+    border-radius:18px 18px 0 0;
+  }
+  .node.gold { background:#FFF8E8; }
+  .node.gold::before { background:#F2B84B; }
+  .node.blue { background:#F0F7FC; }
+  .node.blue::before { background:#2F6F9F; }
+  .node.green { background:#EAF6EE; }
+  .node.green::before { background:#4F9D69; }
+  .node.orange { background:#FCEBE6; }
+  .node.orange::before { background:#E76F51; }
+  .node-title {
+    margin-top: 8px;
+    font-size: 16px;
+    font-weight: 800;
+    color: #12324A;
+    text-align: center;
+  }
+  .node-text {
+    font-size: 13px;
+    color:#475467;
+    text-align:center;
+    line-height:1.25;
+    margin-top: 8px;
+  }
+  .anchor-row {
+    display:flex;
+    gap: 12px;
+    margin-top: 0.2in;
+  }
+  .anchor {
+    flex:1;
+    padding: 11px 12px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 13px;
+    text-align:center;
+    white-space: nowrap;
+  }
+  .likelihood-card {
+    margin-top: 0.23in;
+    border: 1px solid #D8E1EA;
+    border-radius: 22px;
+    background: white;
+    padding: 0.19in 0.25in 0.16in 0.25in;
+  }
+  .likelihood-title {
+    color:#2F6F9F;
+    font-weight:800;
+    font-size:16px;
+    margin-bottom: 8px;
+  }
+  .equation {
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    gap: 9px;
+    white-space: nowrap;
+    font-family: "Times New Roman", Times, serif;
+    color:#12324A;
+    margin-top: 2px;
+    max-width: 100%;
+  }
+  .eq-base {
+    font-size: 22px;
+    line-height: 1.1;
+    padding-top: 5px;
+    flex: 0 0 auto;
+  }
+  .term-stack {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    width: 1.42in;
+    flex: 0 0 auto;
+  }
+  .term-stack.choice {
+    width: 3.45in;
+    flex: 0 0 auto;
+  }
+  .math-term {
+    font-size: 22px;
+    line-height: 1.15;
+  }
+  .brace {
+    width: 100%;
+    height: 7px;
+    border-top: 2px solid currentColor;
+    border-left: 2px solid currentColor;
+    border-right: 2px solid currentColor;
+    margin-top: 1px;
+  }
+  .term-label {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10px;
+    font-weight: 800;
+    margin-top: 2px;
+    text-align:center;
+    white-space: normal;
+    line-height: 1.05;
+  }
+  .likelihood-notes {
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.18in;
+    margin-top: 0.14in;
+  }
+  .mini-note {
+    border-radius: 14px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    line-height:1.3;
+  }
+  .mini-note.purple { background:#EFEDFF; color:#3D337E; }
+  .mini-note.green { background:#EAF6EE; color:#2E6B41; }
+  .chips {
+    display:flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+    margin-top: 0.12in;
+  }
+  .chip {
+    background:#F7F9FC;
+    border:1px solid #D8E1EA;
+    color:#12324A;
+    font-weight:800;
+    padding:7px 11px;
+    border-radius:999px;
+    font-size:12px;
+    white-space: nowrap;
+  }
+  .engine-grid {
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.22in;
+    margin-top: 0.2in;
+  }
+  .engine-card {
+    min-height: 1.45in;
+    border-radius:20px;
+    padding: 0.18in;
+    border: 1px solid #D8E1EA;
+    position:relative;
+  }
+  .engine-card .badge {
+    width:28px;
+    height:28px;
+    border-radius:50%;
+    color:white;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:13px;
+    font-weight:800;
+    margin-bottom: 10px;
+  }
+  .engine-card ul {
+    margin: 8px 0 0 0;
+    padding-left: 16px;
+    font-size:12.5px;
+    line-height:1.45;
+    color:#475467;
+  }
+  .scenario-move {
+    margin-top: 0.30in;
+    border-radius:20px;
+    border:1px solid #D8E1EA;
+    padding:0.19in 0.24in;
+    background:white;
+  }
+  .roadmap {
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.3in;
+    margin-top: 0.18in;
+  }
+  .road-card {
+    border-radius:18px;
+    padding:0.18in 0.22in;
+  }
+  .road-card ul {
+    margin:8px 0 0 0;
+    padding-left:18px;
+    line-height:1.45;
+    font-size:13px;
+    color:#475467;
+  }
+  .kpi-row {
+    display:grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.14in;
+    margin-bottom: 0.18in;
+  }
+  .kpi {
+    border:1px solid #D8E1EA;
+    border-left: 7px solid #2F6F9F;
+    border-radius:15px;
+    padding: 0.13in 0.12in;
+    background:white;
+    min-height: 0.85in;
+  }
+  .kpi.green { border-left-color:#4F9D69; }
+  .kpi.orange { border-left-color:#E76F51; }
+  .kpi.purple { border-left-color:#6B5DD3; }
+  .kpi .label {
+    color:#667085;
+    font-size:11px;
+    font-weight:800;
+    margin-bottom: 10px;
+  }
+  .kpi .value {
+    color:#12324A;
+    font-size:24px;
+    font-weight:800;
+  }
+  .results-layout {
+    display:grid;
+    grid-template-columns: 2.05fr 1fr;
+    gap:0.28in;
+  }
+  .matrix-card, .side-card {
+    border:1px solid #D8E1EA;
+    border-radius:18px;
+    background:white;
+    padding:0.18in;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 11px;
+  }
+  th {
+    background:#F0F7FC;
+    color:#12324A;
+    font-weight:800;
+    padding:8px 6px;
+    border-bottom:1px solid #D8E1EA;
+  }
+  td {
+    padding:9px 6px;
+    border-bottom:1px solid #E6ECF2;
+    text-align:center;
+    color:#98A2B3;
+  }
+  td.rowhead, th.rowhead {
+    text-align:left;
+    color:#202B36;
+    font-weight:700;
+    width: 25%;
+  }
+  .scenario-table td, .scenario-table th { font-size:10.5px; padding:7px 5px; }
+  .results-bottom {
+    display:flex;
+    justify-content:flex-end;
+    margin-top: 0.18in;
+  }
+  .ai-button {
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    border-radius:999px;
+    background:#EFEDFF;
+    color:#4A3FB4;
+    border:1px solid #D8D4FF;
+    font-weight:800;
+    padding: 12px 18px;
+    font-size:14px;
+  }
+  .ai-button .dot {
+    width:10px; height:10px; border-radius:50%; background:#6B5DD3;
+    display:inline-block;
+  }
+  .appendix-layout {
+    display:grid;
+    grid-template-columns: 1fr;
+    gap: 0.18in;
+  }
+  .tabs {
+    display:flex;
+    gap:10px;
+    margin-top:0.04in;
+  }
+  .tab {
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-weight:800;
+    border:1px solid #D8E1EA;
+    background:#F7F9FC;
+    color:#475467;
+    font-size:14px;
+  }
+  .tab.active {
+    background:#EFEDFF;
+    border-color:#D8D4FF;
+    color:#4A3FB4;
+  }
+  .ai-grid {
+    display:grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 0.25in;
+    margin-top: 0.15in;
+  }
+</style>
+</head>
+
+<body>
+
+<section class="slide">
+  <div class="header">
+    <h1>Counterfactual Product Lineup Model</h1>
+    <div class="sub">Finance / Product leadership screen-share brief</div>
+  </div>
+  <div class="hero">
+    <div>
+      <div class="eyebrow">Business question</div>
+      <div class="hero-title">If we redesign the lineup,<br>where do customers go?</div>
+      <div class="title-summary">
+        <div class="summary-row"><span class="summary-num">1</span><span>Estimate a latent mixture dynamic discrete choice model of how beliefs, complexity, and current product features drive sorting.</span></div>
+        <div class="summary-row"><span class="summary-num">2</span><span>Recover structural demand parameters from WTP price variation.</span></div>
+        <div class="summary-row"><span class="summary-num">3</span><span>Simulate TY26 lineup scenarios and predict conversion across new options.</span></div>
+      </div>
+      <div class="outcome-row" style="margin-top:0.28in">
+        <span class="pill orange">No start</span>
+        <span class="pill gold">Drop</span>
+        <span class="pill green">Finish in TY26 option</span>
+      </div>
+      <div class="takeaway">
+        <div class="label">Executive takeaway</div>
+        <p class="medium">The model separates what customers believe, what complexity they actually have, and how they value product features. This lets us compare TY26 lineup scenarios on conversion, migration, and revenue instead of relying on current product shares.</p>
+      </div>
+    </div>
+    <div class="flow-panel">
+      <h3>Why a model is needed</h3>
+      <div style="height:0.18in"></div>
+      <div class="flow-step">
+        <div class="num">1</div>
+        <div><div class="flow-title">Current choices</div><div class="flow-text">what customers did in today's menu</div></div>
+      </div>
+      <div class="flow-step gold">
+        <div class="num">2</div>
+        <div><div class="flow-title">Hidden customer states</div><div class="flow-text">beliefs at start + true complexity later</div></div>
+      </div>
+      <div class="flow-step green">
+        <div class="num">3</div>
+        <div><div class="flow-title">Demand primitives</div><div class="flow-text">service, product, add on, and price effects</div></div>
+      </div>
+      <div class="flow-step orange">
+        <div class="num">4</div>
+        <div><div class="flow-title">Scenario predictions</div><div class="flow-text">migration, conversion, revenue, AI sensitivity</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="page-num">1</div>
+</section>
+
+<section class="slide">
+  <div class="header">
+    <h1>1. Model story in one picture</h1>
+    <div class="sub">Current behavior → reusable demand components</div>
+  </div>
+
+  <div class="section-grid">
+    <div class="node gold"><div class="node-title">Belief state</div><div class="node-text">what the customer thinks at shopping start</div></div>
+    <div class="node blue"><div class="node-title">Start choice</div><div class="node-text">no start or starting product</div></div>
+    <div class="node green"><div class="node-title">True complexity</div><div class="node-text">what still matters at completion</div></div>
+    <div class="node orange"><div class="node-title">Bundle choice</div><div class="node-text">service/product + optional add ons</div></div>
+  </div>
+
+  <div style="margin-top:0.22in">
+    <h3>Observed anchors</h3>
+    <div class="anchor-row">
+      <div class="anchor" style="background:#F0F7FC;color:#2F6F9F;">SLR response → belief class</div>
+      <div class="anchor" style="background:#EAF6EE;color:#4F9D69;">Completed complexity → true complexity</div>
+      <div class="anchor" style="background:#FFF3D7;color:#C58B15;">Prices shift choices</div>
+    </div>
+  </div>
+
+  <div class="likelihood-card">
+    <div class="likelihood-title">Likelihood idea</div>
+    <div class="equation">
+      <div class="eq-base">L<sub>i</sub>(Θ) = ∑<sub>(τ,b,ν)∈𝒞<sub>i</sub></sub></div>
+      <div class="term-stack">
+        <div class="math-term">π<sub>τbν|x<sub>i</sub></sub></div>
+        <div class="brace purple"></div>
+        <div class="term-label purple">population share</div>
+      </div>
+      <div class="term-stack choice">
+        <div class="math-term">P<sub>i</sub>(O<sub>i</sub> | τ,b,ν,x<sub>i</sub>,p<sub>i</sub>; Θ)</div>
+        <div class="brace green"></div>
+        <div class="term-label green">probability of observed start / drop / finish choices</div>
+      </div>
+    </div>
+    <div class="likelihood-notes">
+      <div class="mini-note purple"><b>Hidden state:</b> belief + true complexity + other heterogeneity.</div>
+      <div class="mini-note green"><b>Key point:</b> product tiers can disappear from the menu, but customer complexity does not disappear.</div>
+    </div>
+  </div>
+
+  <div class="chips">
+    <span class="chip">Beliefs</span>
+    <span class="chip">True complexity</span>
+    <span class="chip">Service value</span>
+    <span class="chip">Product value</span>
+    <span class="chip">Add-on value</span>
+    <span class="chip">Price response</span>
+    <span class="chip">Drop risk</span>
+  </div>
+  <div class="page-num">2</div>
+</section>
+
+<section class="slide">
+  <div class="header">
+    <h1>2. Counterfactual engine</h1>
+    <div class="sub">Swap the menu → recompute sorting</div>
+  </div>
+
+  <div class="engine-grid">
+    <div class="engine-card" style="background:#F7F9FC"><div class="badge" style="background:#2F6F9F">1</div><h3>Current lineup</h3><ul><li>service types</li><li>complexity tiers</li><li>optional add ons</li><li>observed prices</li></ul></div>
+    <div class="engine-card" style="background:#F0F7FC"><div class="badge" style="background:#2A9D8F">2</div><h3>Estimated primitives</h3><ul><li>beliefs + complexity</li><li>feature preferences</li><li>price sensitivity</li><li>attach behavior</li></ul></div>
+    <div class="engine-card" style="background:#FFF3D7"><div class="badge" style="background:#F2B84B">3</div><h3>Scenario menu</h3><ul><li>remove tiers</li><li>merge products</li><li>roll in entitlements</li><li>change prices</li></ul></div>
+    <div class="engine-card" style="background:#EAF6EE"><div class="badge" style="background:#4F9D69">4</div><h3>Outputs</h3><ul><li>migration</li><li>conversion</li><li>revenue</li><li>AI sensitivity</li></ul></div>
+  </div>
+
+  <div class="scenario-move">
+    <h3>Scenario move</h3>
+    <p class="medium" style="margin-top:7px">Keep estimated customer states and preferences fixed. Replace menu attributes, prices, add on entitlements, and optional add ons. Recompute probabilities.</p>
+    <p class="small" style="margin-top:7px"><b>Scenario product share</b> = start probability × completion probability, summed over beliefs, complexity, and optional add on bundles.</p>
+  </div>
+
+  <h3 style="margin-top:0.25in">Roadmap</h3>
+  <div class="roadmap">
+    <div class="road-card" style="background:#F0F7FC">
+      <h3 class="blue">Week of May 26</h3>
+      <ul><li>Baseline model</li><li>Fit checks</li><li>First migration matrices</li></ul>
+    </div>
+    <div class="road-card" style="background:#EAF6EE">
+      <h3 class="green">Summer / next phase</h3>
+      <ul><li>Richer heterogeneity</li><li>Fast pricing + assortment simulation</li><li>AI-supported scenario tooling</li></ul>
+    </div>
+  </div>
+  <div class="page-num">3</div>
+</section>
+
+<!-- Results pages: bottom row intentionally contains only the AI sensitivity routing button. -->
+<section class="slide results">
+  <div class="header">
+    <h1>4. Overall preliminary results view</h1>
+    <div class="sub">Blank placeholders for early model output</div>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="label">Predictive fit</div><div class="value">TBD</div></div>
+    <div class="kpi green"><div class="label">Conversion delta</div><div class="value">TBD</div></div>
+    <div class="kpi green"><div class="label">Revenue delta</div><div class="value">TBD</div></div>
+    <div class="kpi orange"><div class="label">Drop delta</div><div class="value">TBD</div></div>
+    <div class="kpi purple"><div class="label">Attach rate</div><div class="value">TBD</div></div>
+    <div class="kpi"><div class="label">Scenario</div><div class="value">TBD</div></div>
+  </div>
+  <div class="results-layout">
+    <div class="matrix-card">
+      <h3>Migration matrix</h3>
+      <p class="tiny" style="margin:4px 0 10px 0">Rows: current outcome. Columns: scenario outcome.</p>
+      <table>
+        <tr><th class="rowhead">Current \ Scenario</th><th>No start</th><th>Drop</th><th>Scenario A</th><th>Scenario B</th><th>Scenario C</th></tr>
+        <tr><td class="rowhead">No start</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Drop</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 1</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 2</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 3</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      </table>
+    </div>
+    <div class="side-card">
+      <h3>Scenario comparison</h3>
+      <table class="scenario-table" style="margin-top:10px">
+        <tr><th>Scenario</th><th>Conv.</th><th>Revenue</th><th>Drop</th><th>AI</th></tr>
+        <tr><td class="rowhead">Baseline</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+        <tr><td class="rowhead">A</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+        <tr><td class="rowhead">B</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+        <tr><td class="rowhead">C</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+      </table>
+      <p class="small" style="margin-top:14px">Readout focus: which current customers move into, out of, or across scenario products?</p>
+    </div>
+  </div>
+  <div class="results-bottom"><div class="ai-button"><span class="dot"></span>AI sensitivity appendix →</div></div>
+  <div class="page-num">4</div>
+</section>
+
+<section class="slide results">
+  <div class="header">
+    <h1>5. New customer results view</h1>
+    <div class="sub">Same scenario outputs, filtered to new customers</div>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="label">Predictive fit</div><div class="value">TBD</div></div>
+    <div class="kpi green"><div class="label">Conversion delta</div><div class="value">TBD</div></div>
+    <div class="kpi green"><div class="label">Revenue delta</div><div class="value">TBD</div></div>
+    <div class="kpi orange"><div class="label">Drop delta</div><div class="value">TBD</div></div>
+    <div class="kpi purple"><div class="label">Attach rate</div><div class="value">TBD</div></div>
+    <div class="kpi"><div class="label">Scenario</div><div class="value">TBD</div></div>
+  </div>
+  <div class="results-layout">
+    <div class="matrix-card">
+      <h3>Migration matrix</h3>
+      <p class="tiny" style="margin:4px 0 10px 0">Rows: current outcome. Columns: scenario outcome.</p>
+      <table>
+        <tr><th class="rowhead">Current \ Scenario</th><th>No start</th><th>Drop</th><th>Scenario A</th><th>Scenario B</th><th>Scenario C</th></tr>
+        <tr><td class="rowhead">No start</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Drop</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 1</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 2</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 3</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      </table>
+    </div>
+    <div class="side-card" style="background:#F0F7FC">
+      <h3>Segment interpretation</h3>
+      <p class="small" style="margin-top:10px">Use the same model primitives, then report migration only for new customers.</p>
+      <p class="small" style="margin-top:12px"><b>Key comparison:</b> scenario gains, losses, and drop-rate changes relative to the overall population.</p>
+    </div>
+  </div>
+  <div class="results-bottom"><div class="ai-button"><span class="dot"></span>AI sensitivity appendix →</div></div>
+  <div class="page-num">5</div>
+</section>
+
+<section class="slide results">
+  <div class="header">
+    <h1>6. Returning customer results view</h1>
+    <div class="sub">Same scenario outputs, filtered to returning customers</div>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="label">Predictive fit</div><div class="value">TBD</div></div>
+    <div class="kpi green"><div class="label">Conversion delta</div><div class="value">TBD</div></div>
+    <div class="kpi green"><div class="label">Revenue delta</div><div class="value">TBD</div></div>
+    <div class="kpi orange"><div class="label">Drop delta</div><div class="value">TBD</div></div>
+    <div class="kpi purple"><div class="label">Attach rate</div><div class="value">TBD</div></div>
+    <div class="kpi"><div class="label">Scenario</div><div class="value">TBD</div></div>
+  </div>
+  <div class="results-layout">
+    <div class="matrix-card">
+      <h3>Migration matrix</h3>
+      <p class="tiny" style="margin:4px 0 10px 0">Rows: current outcome. Columns: scenario outcome.</p>
+      <table>
+        <tr><th class="rowhead">Current \ Scenario</th><th>No start</th><th>Drop</th><th>Scenario A</th><th>Scenario B</th><th>Scenario C</th></tr>
+        <tr><td class="rowhead">No start</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Drop</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 1</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 2</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 3</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      </table>
+    </div>
+    <div class="side-card" style="background:#EFEDFF">
+      <h3>Segment interpretation</h3>
+      <p class="small" style="margin-top:10px">Use the same model primitives, then report migration only for returning customers.</p>
+      <p class="small" style="margin-top:12px"><b>Key comparison:</b> scenario gains, losses, and drop-rate changes relative to new customers.</p>
+    </div>
+  </div>
+  <div class="results-bottom"><div class="ai-button"><span class="dot"></span>AI sensitivity appendix →</div></div>
+  <div class="page-num">6</div>
+</section>
+
+<section class="slide">
+  <div class="header">
+    <h1>7. AI sensitivity appendix</h1>
+    <div class="sub">Static mockup of interactive tabs</div>
+  </div>
+  <p class="medium">In the live dashboard, the AI sensitivity button routes here. Tabs switch the assumed WTP for AI support and refresh the migration matrix and KPIs.</p>
+  <div class="tabs">
+    <div class="tab active">WTP = -$25</div>
+    <div class="tab">WTP = $0</div>
+    <div class="tab">WTP = +$25</div>
+  </div>
+  <div class="ai-grid">
+    <div class="matrix-card">
+      <h3>Migration matrix under selected AI WTP tab</h3>
+      <p class="tiny" style="margin:4px 0 10px 0">Same structure as the results pages. Values update by AI WTP assumption.</p>
+      <table>
+        <tr><th class="rowhead">Current \ Scenario</th><th>No start</th><th>Drop</th><th>Scenario A</th><th>Scenario B</th><th>Scenario C</th></tr>
+        <tr><td class="rowhead">No start</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Drop</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 1</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 2</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td class="rowhead">Completion 3</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      </table>
+    </div>
+    <div>
+      <div class="kpi purple" style="margin-bottom:14px"><div class="label">AI WTP assumption</div><div class="value">-$25</div></div>
+      <div class="kpi green" style="margin-bottom:14px"><div class="label">Conversion impact</div><div class="value">TBD</div></div>
+      <div class="kpi green" style="margin-bottom:14px"><div class="label">Revenue impact</div><div class="value">TBD</div></div>
+      <div class="kpi orange"><div class="label">Drop-rate impact</div><div class="value">TBD</div></div>
+    </div>
+  </div>
+  <div class="page-num">7</div>
+</section>
+
+</body>
+</html>
