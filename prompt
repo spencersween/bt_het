@@ -1,0 +1,1740 @@
+# Implementation Specification
+
+## Latent Price Structural Demand Model
+
+### Part I: Statistical Model, Likelihood, and Estimation
+
+---
+
+# 1. Objective
+
+Implement a configurable maximum likelihood estimator for a structural binary demand model in which the focal product's price is determined by a high-dimensional pricing schedule that is only partially observed.
+
+The estimator should jointly recover:
+
+* the structural demand curve for the focal product,
+* the distribution of the latent pricing forms,
+* the induced distribution of prices,
+* counterfactual demand and revenue under alternative pricing policies.
+
+The implementation should prioritize:
+
+* statistical correctness,
+* computational efficiency,
+* modularity,
+* extensibility.
+
+Every major component should be replaceable without requiring changes elsewhere in the codebase.
+
+---
+
+# 2. Statistical Environment
+
+There is one focal product and a composite outside alternative.
+
+For every customer observe
+
+[
+Y_i\in{0,1},
+]
+
+where
+
+* (Y_i=1): customer completes in the focal product,
+* (Y_i=0): customer chooses anything else.
+
+Observe
+
+* pricing arm,
+* supplied covariates.
+
+Only focal-product completers reveal the pricing forms.
+
+For
+
+[
+Y_i=1
+]
+
+observe
+
+[
+B_i=(B_{i1},...,B_{iJ_B}),
+]
+
+binary forms,
+
+and
+
+[
+C_i=(C_{i1},...,C_{iJ_C}),
+]
+
+count-valued forms.
+
+For
+
+[
+Y_i=0
+]
+
+the pricing forms are missing.
+
+---
+
+# 3. Known Pricing Schedule
+
+The focal price is determined by a deterministic additive schedule.
+
+For pricing arm (a),
+
+[
+P_i
+===
+
+p_{0a}
++
+\sum_j\tau_{aj}B_{ij}
++
+\sum_r\omega_{ar}C_{ir}.
+]
+
+The base prices
+
+[
+p_{0a},
+]
+
+binary increments
+
+[
+\tau_{aj},
+]
+
+and count increments
+
+[
+\omega_{ar}
+]
+
+are known.
+
+They are inputs to the estimator and are **not** estimated.
+
+Initially require all price increments to be nonnegative.
+
+---
+
+# 4. Why Joint Estimation is Required
+
+The forms are only observed among completers.
+
+Completers are selected by price.
+
+Price depends on the forms.
+
+Therefore
+
+[
+(B,C)\not\perp Y.
+]
+
+Estimating the form distribution using only completers would estimate
+
+[
+P(B,C\mid Y=1),
+]
+
+not the population distribution
+
+[
+P(B,C).
+]
+
+Instead estimate
+
+* demand,
+* form distribution,
+
+jointly through one observed-data likelihood.
+
+---
+
+# 5. Demand Model
+
+The composite outside option is normalized to zero.
+
+Systematic utility for the focal product is
+
+[
+V_i(p)
+======
+
+## \alpha(X_i)
+
+\beta(X_i)p.
+]
+
+Completion probability is
+
+[
+s_i(p)
+======
+
+\Lambda(V_i(p)).
+]
+
+where
+
+[
+\Lambda(z)
+==========
+
+\frac1{1+e^{-z}}.
+]
+
+Require
+
+[
+\beta(X)>0.
+]
+
+Implement this through
+
+[
+\beta(X)=\exp(g(X))
+]
+
+or
+
+[
+\beta(X)=\operatorname{softplus}(g(X)).
+]
+
+---
+
+# 6. Demand Heterogeneity
+
+The estimator should support multiple specifications through a common interface.
+
+Every specification computes
+
+[
+\alpha(X)
+]
+
+and
+
+[
+\beta(X).
+]
+
+The remainder of the likelihood must remain unchanged.
+
+## Specification A
+
+Homogeneous demand
+
+Estimate
+
+[
+\alpha,
+]
+
+and
+
+[
+\beta.
+]
+
+This is the baseline model.
+
+---
+
+## Specification B
+
+Saturated categorical heterogeneity.
+
+Allow the user to supply categorical segmentation variables.
+
+The initial intended application is
+
+Customer Status
+
+* New
+* Returning
+
+Season
+
+* Early
+* Mid
+* Late
+
+Estimate
+
+one intercept
+
+and
+
+one price coefficient
+
+for every observed interaction cell.
+
+For the intended application this produces six segments.
+
+However the implementation should automatically construct interaction cells from arbitrary supplied categorical variables.
+
+---
+
+## Specification C
+
+Linear heterogeneous demand.
+
+Allow continuous covariates.
+
+Examples include
+
+* log(previous year's price),
+* AGI,
+* tenure,
+* account age,
+* filing characteristics.
+
+Model
+
+[
+\alpha(X)
+=========
+
+X'\gamma,
+]
+
+and
+
+[
+\beta(X)
+========
+
+\exp(X'\delta).
+]
+
+---
+
+## General Interface
+
+Implement a demand specification interface.
+
+For example
+
+```text
+DemandSpecification
+
+intercept(X)
+
+price_coefficient(X)
+
+linear_index(price,X)
+```
+
+Implement
+
+```text
+ConstantDemandSpecification
+
+SaturatedDemandSpecification
+
+LinearDemandSpecification
+```
+
+Future specifications such as splines or neural networks should plug into this interface without modifying any other component of the estimator.
+
+---
+
+# 7. Latent Factor
+
+Introduce
+
+[
+F_i\sim N(0,1).
+]
+
+Conditional on
+
+[
+(F_i,X),
+]
+
+assume all forms are independent.
+
+This does **not** imply unconditional independence.
+
+The latent factor induces dependence across forms after integration.
+
+Normalize
+
+[
+F_i
+\sim
+N(0,1).
+]
+
+Fix one loading to be positive to resolve sign indeterminacy.
+
+---
+
+# 8. Binary Form Model
+
+For binary form
+
+[
+j
+]
+
+assume
+
+[
+B_{ij}
+\mid
+F_i=f
+\sim
+Bernoulli(\pi_{ij}(f)).
+]
+
+where
+
+[
+\pi_{ij}(f)
+===========
+
+\Phi
+(a_j
++
+X_i'\kappa_j
++
+\lambda_jf).
+]
+
+Estimate
+
+* intercept,
+* covariate coefficients,
+* factor loading,
+
+for every binary form.
+
+---
+
+# 9. Count Form Model
+
+Initial implementation
+
+Poisson.
+
+Assume
+
+[
+C_{ir}
+\mid
+F_i=f
+\sim
+Poisson(\nu_{ir}(f))
+]
+
+where
+
+[
+\nu_{ir}(f)
+===========
+
+\exp
+(d_r
++
+X_i'\xi_r
++
+\rho_rf).
+]
+
+Estimate
+
+* intercept,
+* covariate coefficients,
+* factor loading,
+
+for every count form.
+
+The shared latent factor already creates marginal overdispersion.
+
+Therefore implement and validate this model before introducing negative binomial.
+
+The count-family implementation should nevertheless be modular.
+
+Later versions should permit
+
+```text
+PoissonCountFamily
+
+NegativeBinomialCountFamily
+```
+
+through a common interface.
+
+---
+
+# 10. Conditional Joint Form Density
+
+Conditional on
+
+[
+(F_i,X_i),
+]
+
+the joint density factorizes.
+
+[
+g_i(b,c|f)
+==========
+
+\prod_j
+P(B_{ij}=b_j|f)
+\prod_r
+P(C_{ir}=c_r|f).
+]
+
+Evaluate all probabilities in log space.
+
+---
+
+# 11. Completer Likelihood
+
+Completers reveal the pricing forms.
+
+Therefore price is observed.
+
+The contribution is
+
+[
+L_{i1}
+======
+
+s_i(p_i)
+\int
+\phi(f)
+g_i(B_i,C_i|f)
+df.
+]
+
+The demand probability separates from the factor integral because
+
+once the price is known,
+
+the latent factor has no remaining direct effect on demand.
+
+This follows from the exclusion restriction
+
+forms affect completion only through price.
+
+---
+
+# 12. Non-completer Likelihood
+
+For non-completers
+
+the forms are missing.
+
+The exact likelihood is
+
+[
+\int
+\phi(f)
+\sum_b
+\sum_c
+g_i(b,c|f)
+(1-s_i(p(b,c)))
+df.
+]
+
+Direct evaluation is impossible because
+
+binary forms require
+
+[
+2^{J_B}
+]
+
+configurations
+
+and count forms have infinite support.
+
+The goal is therefore to compute exactly the same probability without enumerating every form vector.
+
+---
+
+# 13. Why Price Collapse is Valid
+
+Suppose demand depends on the forms only through total price.
+
+Define
+
+[
+S
+=
+
+\sum_jt_jB_j
++
+\sum_rw_rC_r.
+]
+
+Define
+
+[
+h(s|f)
+======
+
+P(S=s|f).
+]
+
+Partition the full form space by total price.
+
+Then
+
+[
+\sum_b
+\sum_c
+g(b,c|f)
+q(p(b,c))
+=========
+
+\sum_s
+h(s|f)
+q(p(s)).
+]
+
+Nothing is approximated.
+
+This follows directly from
+
+* the law of total probability,
+* the law of iterated expectations.
+
+Therefore the problem becomes construction of
+
+[
+h(s|f).
+]
+
+---
+
+# 14. Price Grid
+
+Represent prices on an integer grid.
+
+Choose
+
+[
+\Delta.
+]
+
+Represent
+
+[
+p_0=\Delta m_0,
+]
+
+[
+\tau=\Delta t,
+]
+
+[
+\omega=\Delta w.
+]
+
+Validate the approximation error.
+
+Make
+
+[
+\Delta
+]
+
+configurable.
+
+---
+
+# 15. Why Convolution Works
+
+Conditional on
+
+[
+(F_i,X_i),
+]
+
+each form contributes an independent random price increment.
+
+For independent discrete variables
+
+[
+U,V,
+]
+
+[
+P(U+V=s)
+========
+
+\sum_u
+P(U=u)
+P(V=s-u).
+]
+
+This identity is convolution.
+
+Since total price is the sum of independent contributions,
+
+its probability distribution is obtained by repeated convolution.
+
+Convolution is therefore not an approximation.
+
+It is an exact probability identity.
+
+---
+
+# 16. Count Price Distribution
+
+Construct the price contribution generated by count forms first.
+
+Let
+
+[
+S_C
+===
+
+\sum_rw_rC_r.
+]
+
+Conditional on
+
+[
+F=f,
+]
+
+each count is Poisson.
+
+Use the probability generating function
+
+[
+E[z^C]
+======
+
+\exp(\nu(z-1)).
+]
+
+The generating function of the weighted sum equals the product of the individual generating functions because the counts are conditionally independent.
+
+Group count forms sharing identical price increments.
+
+Use the compound-Poisson recursion to recover
+
+[
+P(S_C=s).
+]
+
+The recursion is obtained by differentiating the generating function and matching coefficients.
+
+Implement through
+
+[
+s=0,\ldots,M.
+]
+
+This is exact up to the configured truncation point.
+
+---
+
+# 17. Binary Price Convolution
+
+Initialize
+
+the price distribution with the count-generated distribution.
+
+Process one binary form at a time.
+
+Each binary form contributes
+
+either
+
+zero
+
+or
+
+its configured price increment.
+
+Update the current price distribution using the convolution identity.
+
+This sequential dynamic program computes the exact conditional price distribution without enumerating every binary configuration.
+
+The implementation should use two working arrays and alternate between them.
+
+Memory should scale with
+
+[
+O(M).
+]
+
+---
+
+# 18. Gaussian Quadrature
+
+The remaining integral is over one latent factor.
+
+Approximate
+
+[
+\int
+\phi(f)
+r(f)
+df
+]
+
+using Gauss-Hermite quadrature.
+
+Transform nodes and weights to the standard normal.
+
+Allow the number of nodes to be configurable.
+
+Reuse node-level probabilities wherever possible.
+
+---
+
+# 19. Tail Truncation
+
+Poisson counts imply infinite support.
+
+Retain
+
+[
+0,\ldots,M.
+]
+
+Compute
+
+retained probability,
+
+tail probability,
+
+and an upper bound on the approximation error.
+
+Hold
+
+[
+M
+]
+
+fixed during optimization.
+
+Report tail mass in diagnostics.
+
+---
+
+# 20. Final Observation-Level Likelihood
+
+For completers
+
+evaluate
+
+the observed demand probability
+
+times
+
+the quadrature approximation to the observed form probability.
+
+For non-completers
+
+evaluate
+
+the quadrature approximation to the integrated non-completion probability over the conditional price distribution.
+
+The estimator should maximize the observation-level log likelihood.
+
+Do not replace the latent price distribution with its conditional mean.
+
+In general
+
+[
+E[\Lambda(V-\beta P)]
+\neq
+\Lambda(V-\beta E[P]).
+]
+
+The entire conditional price distribution must therefore be retained throughout estimation.
+
+---
+
+# End of Part I
+
+Part II contains:
+
+* software architecture,
+* implementation modules,
+* simulator engine,
+* demand and revenue curves,
+* counterfactual pricing,
+* heterogeneous simulation,
+* optimization,
+* diagnostics,
+* testing,
+* Monte Carlo validation,
+* modular negative-binomial extension.
+
+# Implementation Specification
+
+## Latent Price Structural Demand Model
+
+### Part II: Software Architecture, Simulation Engine, Counterfactuals, Diagnostics, and Validation
+
+---
+
+# 21. Software Philosophy
+
+The implementation should separate:
+
+1. the statistical model,
+2. numerical methods,
+3. optimization,
+4. simulation,
+5. diagnostics.
+
+Every component should expose a clean interface so that future statistical models can reuse the same computational machinery.
+
+In particular:
+
+* changing the demand specification should not require modifying the likelihood;
+* changing the count-family model should not require modifying the simulator;
+* changing the optimization routine should not require modifying the statistical model.
+
+The estimator should be configuration driven rather than application specific.
+
+---
+
+# 22. Recommended Package Structure
+
+```text
+model/
+
+    config.py
+
+    validation.py
+
+    preprocessing.py
+
+    quadrature.py
+
+    parameters.py
+
+    demand.py
+
+    binary_forms.py
+
+    count_forms.py
+
+    price_grid.py
+
+    poisson_convolution.py
+
+    binary_convolution.py
+
+    price_distribution.py
+
+    likelihood.py
+
+    optimization.py
+
+    prediction.py
+
+    simulation.py
+
+    diagnostics.py
+
+extensions/
+
+    negative_binomial.py
+
+tests/
+
+    test_likelihood.py
+
+    test_convolution.py
+
+    test_quadrature.py
+
+    test_simulation.py
+
+    test_gradients.py
+
+    test_price_distribution.py
+```
+
+The implementation should emphasize readability and modularity over aggressive micro-optimization in the first version.
+
+---
+
+# 23. Configuration
+
+Every model component should be supplied through a configuration object.
+
+The configuration should contain at least
+
+```text
+Outcome column
+
+Pricing arm column
+
+Binary form columns
+
+Count form columns
+
+Demand covariates
+
+Binary-form covariates
+
+Count-form covariates
+
+Base prices
+
+Binary price increments
+
+Count price increments
+
+Price grid width
+
+Price grid cutoff
+
+Quadrature nodes
+
+Optimizer
+
+Demand specification
+
+Count-family specification
+
+Simulation settings
+```
+
+No assumptions about the application should appear inside the implementation.
+
+---
+
+# 24. Demand Specification Interface
+
+Implement a generic demand interface.
+
+Conceptually,
+
+```text
+DemandSpecification
+
+intercept(X)
+
+price_coefficient(X)
+
+completion_probability(price,X)
+
+linear_index(price,X)
+```
+
+Three implementations should initially be provided.
+
+### Constant
+
+One intercept.
+
+One price coefficient.
+
+---
+
+### Saturated
+
+Construct interaction cells from supplied categorical variables.
+
+Estimate
+
+one intercept
+
+and
+
+one price coefficient
+
+for every observed cell.
+
+The initial intended application uses
+
+Customer Status
+
+×
+
+Season
+
+but this should not be hard coded.
+
+---
+
+### Linear
+
+Estimate
+
+[
+\alpha(X)=X'\gamma
+]
+
+and
+
+[
+\beta(X)=\exp(X'\delta).
+]
+
+Continuous variables such as
+
+* log(previous year's price),
+* AGI,
+* tenure,
+
+should naturally fit into this specification.
+
+---
+
+Future extensions should include
+
+* splines,
+* GAMs,
+* neural networks,
+
+without changing any downstream code.
+
+---
+
+# 25. Count Family Interface
+
+Similarly implement
+
+```text
+CountFamily
+
+log_pmf()
+
+conditional_mean()
+
+price_distribution()
+```
+
+Initially provide
+
+```text
+PoissonCountFamily
+```
+
+The later
+
+```text
+NegativeBinomialCountFamily
+```
+
+should satisfy exactly the same interface.
+
+Nothing downstream should depend on which count family is being used.
+
+---
+
+# 26. Estimation Pipeline
+
+The estimator should proceed as
+
+Step 1
+
+Validate data.
+
+Step 2
+
+Construct design matrices.
+
+Step 3
+
+Validate pricing schedule.
+
+Step 4
+
+Construct integer price grid.
+
+Step 5
+
+Initialize parameters.
+
+Step 6
+
+Create quadrature nodes.
+
+Step 7
+
+Evaluate likelihood.
+
+Step 8
+
+Optimize.
+
+Step 9
+
+Compute standard errors.
+
+Step 10
+
+Build fitted model object.
+
+---
+
+# 27. Fitted Model Object
+
+The returned fitted model should contain
+
+parameter estimates,
+
+standard errors,
+
+variance-covariance matrix,
+
+optimizer diagnostics,
+
+configuration,
+
+and prediction methods.
+
+The fitted model should be directly usable for counterfactual simulation.
+
+---
+
+# 28. Simulation Philosophy
+
+The simulator should use the fitted structural model.
+
+It should **never** fit auxiliary regressions.
+
+Every prediction should be generated from the structural demand equation.
+
+The simulator should evaluate customer-level probabilities first.
+
+Aggregation occurs afterward.
+
+This is essential because
+
+[
+E[\Lambda(Z)]
+\neq
+\Lambda(E[Z]).
+]
+
+---
+
+# 29. Uniform Price Demand Curves
+
+Given a supplied price grid
+
+[
+p_1,\ldots,p_K,
+]
+
+compute
+
+[
+\hat q(p)
+=========
+
+\frac1N
+\sum_i
+\Lambda(
+\hat\alpha(X_i)
+---------------
+
+\hat\beta(X_i)p
+).
+]
+
+Return
+
+conversion,
+
+predicted completions,
+
+predicted revenue.
+
+Plot
+
+conversion vs price,
+
+quantity vs price,
+
+revenue vs price.
+
+---
+
+# 30. Schedule-Based Counterfactuals
+
+A scalar price curve ignores the heterogeneous pricing schedule.
+
+Also support evaluation of complete pricing schedules.
+
+Each candidate schedule supplies
+
+new base price,
+
+binary increments,
+
+count increments.
+
+Reconstruct the induced conditional price distribution using the estimated latent form model.
+
+Then evaluate demand under the new schedule.
+
+This preserves heterogeneous prices across customers.
+
+---
+
+# 31. Additive Price Shifts
+
+Support
+
+[
+P^{cf}
+======
+
+P+\delta.
+]
+
+This permits simple pricing analyses without rebuilding the pricing schedule.
+
+Return
+
+conversion,
+
+quantity,
+
+revenue,
+
+relative to the baseline.
+
+---
+
+# 32. Revenue
+
+Uniform-price revenue
+
+is
+
+[
+R(p)
+====
+
+pQ(p).
+]
+
+Schedule-level revenue must instead integrate
+
+realized price
+
+times
+
+completion probability
+
+over the complete conditional price distribution.
+
+Never replace this calculation by
+
+average price
+
+times
+
+average conversion.
+
+---
+
+# 33. Revenue Optimization
+
+Support
+
+grid search,
+
+bounded one-dimensional optimization,
+
+evaluation of candidate pricing schedules.
+
+Return
+
+best price,
+
+best revenue,
+
+best conversion,
+
+revenue relative to baseline.
+
+Grid search should be the default.
+
+---
+
+# 34. Heterogeneous Simulation
+
+Every simulation should automatically evaluate
+
+[
+\hat\alpha(X_i),
+]
+
+and
+
+[
+\hat\beta(X_i)
+]
+
+for every customer.
+
+This produces the market demand curve
+
+[
+\frac1N
+\sum_i
+\Lambda(
+\hat\alpha(X_i)
+---------------
+
+\hat\beta(X_i)p
+).
+]
+
+Never simulate using
+
+average coefficients.
+
+---
+
+# 35. Aggregation
+
+Allow output
+
+overall,
+
+by customer segment,
+
+by season,
+
+by any supplied grouping variable,
+
+by every interaction cell.
+
+The same fitted model should therefore automatically produce
+
+overall demand,
+
+segment demand,
+
+segment revenue,
+
+segment optimal prices.
+
+---
+
+# 36. Counterfactual Customer Mix
+
+Allow the simulator to replace the observed customer composition.
+
+Examples
+
+40% New
+
+60% Returning
+
+or
+
+20% Early
+
+50% Mid
+
+30% Late.
+
+Predictions should then be averaged using these supplied weights.
+
+This allows forecasting future seasons without re-estimation.
+
+---
+
+# 37. Prediction Functions
+
+The fitted model should expose functions conceptually equivalent to
+
+```text
+predict_conversion()
+
+predict_quantity()
+
+predict_revenue()
+
+demand_curve()
+
+evaluate_schedule()
+
+evaluate_price_shift()
+
+optimize_price()
+
+simulate()
+
+compare_candidates()
+```
+
+---
+
+# 38. Monte Carlo Simulator
+
+Implement a complete data-generating process.
+
+For every simulated customer
+
+draw
+
+covariates,
+
+latent factor,
+
+binary forms,
+
+count forms,
+
+pricing arm,
+
+price,
+
+completion.
+
+Mask forms for non-completers.
+
+Estimate the model.
+
+Compare estimates with truth.
+
+The simulator must use the same production likelihood.
+
+---
+
+# 39. Diagnostics
+
+Return
+
+parameter estimates,
+
+standard errors,
+
+gradient norm,
+
+Hessian diagnostics,
+
+tail probability,
+
+runtime,
+
+likelihood,
+
+optimizer convergence,
+
+quadrature sensitivity,
+
+price-grid sensitivity,
+
+form fit,
+
+price-distribution fit,
+
+completion fit.
+
+---
+
+# 40. Model Fit
+
+For every count form compare
+
+observed mean,
+
+predicted mean,
+
+observed variance,
+
+predicted variance,
+
+zero frequency,
+
+one frequency,
+
+upper-tail frequency.
+
+For binary forms compare
+
+observed probabilities
+
+with fitted probabilities.
+
+These comparisons should be conditional on completion because that is the observed sample.
+
+---
+
+# 41. Extrapolation Diagnostics
+
+When evaluating counterfactual prices
+
+report
+
+minimum price,
+
+maximum price,
+
+fraction of simulated prices outside observed support,
+
+fraction of revenue generated outside observed support.
+
+Warn the user when heavy extrapolation occurs.
+
+---
+
+# 42. Numerical Stability
+
+Use
+
+log-sum-exp,
+
+stable logit,
+
+stable normal CDF,
+
+lgamma,
+
+64-bit arithmetic.
+
+Validate
+
+probabilities,
+
+price PMFs,
+
+quadrature weights,
+
+tail probabilities.
+
+Return informative diagnostic messages whenever numerical problems arise.
+
+---
+
+# 43. Standard Errors
+
+Support
+
+observed Hessian,
+
+sandwich,
+
+cluster-robust sandwich.
+
+Use the observation-level likelihood.
+
+---
+
+# 44. Correctness Tests
+
+The implementation should include automated tests verifying
+
+price reconstruction,
+
+Poisson recursion,
+
+binary convolution,
+
+mixed-form convolution,
+
+quadrature,
+
+likelihood,
+
+gradients,
+
+simulation recovery,
+
+price-collapse identity,
+
+schedule-level revenue,
+
+uniform-price demand,
+
+counterfactual price shifts.
+
+Small toy problems should be compared with exact enumeration wherever feasible.
+
+---
+
+# 45. Negative Binomial Extension
+
+The first production implementation should use Poisson.
+
+The architecture should nevertheless allow replacement of the count family.
+
+The negative-binomial extension changes only
+
+the count-form likelihood,
+
+the conditional count-price recursion.
+
+The remainder of the estimator
+
+demand,
+
+latent factor,
+
+quadrature,
+
+binary convolution,
+
+simulation,
+
+counterfactual engine,
+
+diagnostics,
+
+should remain unchanged.
+
+Implement the extension only after
+
+the Poisson model passes all validation tests
+
+and
+
+simulation recovers known parameters.
+
+---
+
+# 46. Deliverables
+
+The completed package should provide
+
+* configuration-driven estimation,
+* structural demand estimation,
+* latent form estimation,
+* observation-level likelihood evaluation,
+* modular demand specifications,
+* modular count-family specifications,
+* counterfactual pricing,
+* demand curves,
+* revenue curves,
+* revenue optimization,
+* heterogeneous simulations,
+* customer-mix forecasting,
+* Monte Carlo simulation,
+* publication-quality figures,
+* diagnostic reports,
+* automated unit tests,
+* mathematical documentation.
+
+The implementation should prioritize correctness first, transparency second, and computational optimization third.
+
+Every approximation should be explicitly documented, every assumption should be configurable where practical, and every numerical shortcut should have a corresponding validation test demonstrating that it reproduces the exact calculation in small problems.
+
+
